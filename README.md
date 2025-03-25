@@ -2,6 +2,7 @@
 
 Elevate your WhatsApp communications with **WaBulkSender**, the all-in-one automation tool designed for efficiency, creativity, and safety. Say goodbye to tedious manual messaging and welcome a smarter, more engaging way to connect with your audience.
 
+![Blue Illustrative Science Fair Banner (410 x 280 mm)](https://github.com/user-attachments/assets/21789290-68e0-42db-b1e5-2d25d6a33399)
 ---
 
 ## 🚀 Key Highlights
@@ -20,16 +21,11 @@ Elevate your WhatsApp communications with **WaBulkSender**, the all-in-one autom
 
 - **Excel Integration for Hassle-Free Contact Management:**  
   Import your contacts directly from Excel—manage phone numbers, names, and more without any manual entry.
-
 ---
 
-## Download 
+## ✨ Get It ON GitHub! ✨
 
-
-### Get It On GitHub
-
-[![Get it on GitHub](https://raw.githubusercontent.com/flocke/andOTP/master/assets/badges/get-it-on-github.png)](https://github.com/Parth-Sancheti-5/WaBulkSender/releases)
-
+<a href="https://github.com/Parth-Sancheti-5/WaBulkSender/releases"><image src="https://raw.githubusercontent.com/flocke/andOTP/master/assets/badges/get-it-on-github.png" height="100" width="250" ></a>
 
 
 ## 💻 How To Install
@@ -112,8 +108,8 @@ Before using WaBulkSender, ensure you have the following:
   Required for sending messages seamlessly through WhatsApp Web.
 
   ### Get It On Microsoft Store
+<a href="https://apps.microsoft.com/detail/9nbdxk71nk08?hl=en-US&gl=US"><image src="https://github.com/user-attachments/assets/04c520ba-6c0e-4213-b4c9-c191630d89a6" height="90" width="260" ></a>
 
-[![Get it from Microsoft](https://github.com/user-attachments/assets/04c520ba-6c0e-4213-b4c9-c191630d89a6)](https://apps.microsoft.com/detail/9nbdxk71nk08?hl=en-US&gl=US)
 
 
 - **Windows OS:**  
