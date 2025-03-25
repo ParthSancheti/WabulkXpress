@@ -1,19 +1,12 @@
-# WaBulkMessageSender
- ----------------
- WaBulkMessageSender automates bulk messaging via WhatsApp Web using Batch scripting and VBScript. Easily configure phone numbers and message text for efficient communication. Ideal for personal or small business use.
  # WaBulkSender
  ---
- **WaBulkSender** is an all-in-one messaging automation tool designed to streamline your WhatsApp communications. With a sleek, modern interface and powerful features, it empowers you to efficiently send personalized messages, generate custom images, and utilize advanced AI for message refinement.
+WaBulkSender is an all-in-one messaging automation tool designed to streamline your WhatsApp communications. With a sleek, modern interface and powerful features, it empowers you to efficiently send personalized messages, generate custom images, and utilize advanced AI for message refinement.
  
  <center>
- <image src=https://github.com/user-attachments/assets/86d8be84-942b-4324-8279-a7963834e1d3>
  <image src=https://github.com/user-attachments/assets/40038df6-3c44-46d7-a374-95349e8532ae>
  </center>
    
  ----------------
- ---
- 
- # ✨ Features
  ## ✨ Features
  
  ## 🚀 Automated Messaging: Send messages in bulk through WhatsApp Web.
