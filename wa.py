@@ -1,3 +1,9 @@
+# ==========================
+# WhatsApp Bulk Messenger
+# Aman | Abhi | 2024 | Python 3.8+
+# One file, zero pre-setup, infinite power!
+# ==========================
+
 import os
 import sys
 import time
@@ -6,6 +12,7 @@ import random
 import shutil
 import threading
 import webbrowser
+import re
 from datetime import datetime
 
 try:
@@ -18,14 +25,18 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
 except ImportError:
-    print("❗️ [!] Please install requirements: pip install selenium webdriver-manager openpyxl pandas")
+    print("❗️ [!] Please install: pip install selenium webdriver-manager openpyxl pandas")
     sys.exit(1)
 
+# --- Constants & Config ---
 SESSION_DIR = os.path.join(os.getcwd(), "wa_session")
 DEBUG_DIR = os.path.join(os.getcwd(), "debug_logs")
 LOG_FILE = os.path.join(os.getcwd(), "wa_log.txt")
 os.makedirs(DEBUG_DIR, exist_ok=True)
+ALLOWED_CODES = ["+91", "+1", "+44", "+61", "+81", "+49", "+33", "+86", "+7"]
+DEFAULT_CODE = "+91"
 
+# --- Logging ---
 def log(msg):
     print(msg)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
@@ -41,112 +52,112 @@ def wait_random(min_sec=1, max_sec=20):
     log(f"⏳ [*] Waiting {t:.2f}s before next action... ⏳")
     time.sleep(t)
 
+# --- Phone Normalization ---
+def normalize_phone(text, default_country=DEFAULT_CODE):
+    original_text = str(text).strip()
+    if not original_text: return None
+    text = original_text.replace(" ", "").replace("-", "")
+    if text.startswith("+"):
+        clean = re.sub(r"[^\d+]", "", text)
+        digits_only = re.sub(r"\D", "", clean)
+        if len(digits_only) < 10: log(f"⚠️ Invalid phone: {original_text}"); return None
+        return clean
+    text = re.sub(r"^[^\d]+", "", text)
+    matched = False
+    for code in ALLOWED_CODES:
+        code_digits = code.replace("+", "")
+        if text.startswith(code_digits):
+            text = "+" + text; matched = True; break
+    if not matched and default_country and default_country != "None":
+        text = default_country + text
+    final = re.sub(r"[^\d+]", "", text)
+    digits_only = re.sub(r"\D", "", final)
+    if len(digits_only) < 10 or not digits_only.isdigit(): log(f"⚠️ Invalid phone: {original_text}"); return None
+    return final
+
 def split_multi_input(input_string):
-    if not input_string:
-        return []
-    return [x.strip() for x in input_string.split(",") if x.strip()]
+    if not input_string: return []
+    # Try comma or semicolon
+    return [normalize_phone(x) for x in re.split(r"[,;]", input_string) if normalize_phone(x)]
 
 def col_letter_to_index(letter):
     if letter.isalpha():
-        letter = letter.upper()
-        index = 0
-        for c in letter:
-            index = index * 26 + (ord(c) - ord('A') + 1)
+        letter = letter.upper(); index = 0
+        for c in letter: index = index * 26 + (ord(c) - ord('A') + 1)
         return index - 1
     return None
 
+# --- Excel/CSV Import ---
 def get_numbers_from_excel(file_path, col):
-    # Try both by header (name) and by column letter
     if file_path.lower().endswith('.csv'):
         df = pd.read_csv(file_path, dtype=str)
         if col.isalpha():
             col_idx = col_letter_to_index(col)
             if col_idx >= len(df.columns):
-                raise Exception(f"❗️ ERROR: CSV file has only {len(df.columns)} columns, can't get column {col.upper()}.")
+                raise Exception(f"❗️ ERROR: CSV has only {len(df.columns)} columns, can't get col {col.upper()}.")
             numbers = df.iloc[:, col_idx].astype(str).tolist()
-            log(f"📥 [+] Imported {len(numbers)} contacts from CSV column {col.upper()}.")
         else:
             if col not in df.columns:
-                raise Exception(f"❗️ ERROR: CSV column '{col}' not found! Columns are: {list(df.columns)}")
+                raise Exception(f"❗️ ERROR: CSV column '{col}' not found! Columns: {list(df.columns)}")
             numbers = df[col].astype(str).tolist()
-            log(f"📥 [+] Imported {len(numbers)} contacts from CSV column '{col}'.")
-        return numbers
+        # Remove header row if present
+        numbers = [n for n in numbers if n and n.lower() != "mobile"]
+        log(f"📥 [+] Imported {len(numbers)} contacts from CSV column {col}.")
+        numbers = [normalize_phone(n) for n in numbers]
+        return [n for n in numbers if n]
     else:
         wb = openpyxl.load_workbook(file_path)
         ws = wb.active
         header = [str(cell.value).strip().lower() if cell.value else '' for cell in ws[1]]
-        numbers = []
-        col_idx = None
+        numbers = []; col_idx = None
         if col.isalpha():
             col_idx = col_letter_to_index(col)
-            if col_idx >= len(header):
-                raise Exception(f"❗️ ERROR: Excel has only {len(header)} columns, can't get column {col.upper()}.")
+            if col_idx >= len(header): raise Exception(f"❗️ ERROR: Excel has only {len(header)} columns, can't get column {col.upper()}.")
         else:
             for idx, name in enumerate(header):
-                if name == col.strip().lower():
-                    col_idx = idx
-                    break
-            if col_idx is None:
-                raise Exception(f"❗️ Column '{col}' not found in Excel file! Columns are: {header}")
+                if name == col.strip().lower(): col_idx = idx; break
+            if col_idx is None: raise Exception(f"❗️ Column '{col}' not found in Excel! Columns: {header}")
         for row in ws.iter_rows(min_row=2):
-            if col_idx >= len(row):
-                continue
+            if col_idx >= len(row): continue
             val = row[col_idx].value
-            if val:
-                numbers.append(str(val).strip())
+            if val and str(val).strip() and str(val).strip().lower() != "nan":
+                normalized = normalize_phone(val)
+                if normalized: numbers.append(normalized)
         log(f"📥 [+] Imported {len(numbers)} contacts from Excel column {col}.")
         return numbers
 
+# --- Chrome WebDriver ---
 def get_chrome_driver(profile_path=None, headless=False):
     from selenium.webdriver.chrome.options import Options
     options = Options()
-    if profile_path:
-        options.add_argument(f'--user-data-dir={profile_path}')
-        options.add_argument('--profile-directory=Default')
-    if headless:
-        options.add_argument('--headless')
-        options.add_argument('--window-size=1920,1080')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--lang=en')
+    if profile_path: options.add_argument(f'--user-data-dir={profile_path}'); options.add_argument('--profile-directory=Default')
+    if headless: options.add_argument('--headless'); options.add_argument('--window-size=1920,1080')
+    options.add_argument('--disable-gpu'); options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage'); options.add_argument('--lang=en')
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    try:
-        driver.maximize_window()
-    except Exception:
-        pass
+    try: driver.maximize_window()
+    except Exception: pass
     log("🚗 [*] Chrome launched and maximized.")
     return driver
 
 def wait_for_element(driver, xpath, timeout=15):
-    try:
-        return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
-    except Exception:
-        return None
+    try: return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, xpath)))
+    except Exception: return None
 
 def safe_click_attach(driver):
     attach_btn = None
     try:
-        attach_btn = WebDriverWait(driver, 20).until(
-            EC.visibility_of_element_located((By.XPATH, '//span[@data-icon="plus-rounded"]'))
-        )
-        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", attach_btn)
-        time.sleep(0.7)
-        try:
-            attach_btn.click()
-        except Exception:
-            driver.execute_script("arguments[0].click();", attach_btn)
+        attach_btn = WebDriverWait(driver, 20).until(EC.visibility_of_element_located((By.XPATH, '//span[@data-icon="plus-rounded"]')))
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", attach_btn); time.sleep(0.7)
+        try: attach_btn.click()
+        except Exception: driver.execute_script("arguments[0].click();", attach_btn)
     except Exception:
         attach_btn = wait_for_element(driver, '//div[@title="Attach"]', 5)
         if attach_btn:
-            try:
-                driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", attach_btn)
-                time.sleep(0.7)
-                attach_btn.click()
-            except Exception:
-                driver.execute_script("arguments[0].click();", attach_btn)
+            try: driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", attach_btn); time.sleep(0.7); attach_btn.click()
+            except Exception: driver.execute_script("arguments[0].click();", attach_btn)
         else:
             filename = f"debug_no_attach_{int(time.time())}.png"
             driver.save_screenshot(os.path.join(DEBUG_DIR, filename))
@@ -155,82 +166,57 @@ def safe_click_attach(driver):
             raise Exception("Attach button not found.")
     time.sleep(2)
 
+# --- Login ---
 def login_whatsapp():
     log("🔄 [*] Starting WhatsApp Web login... 🚀")
     clear_session()
     driver = get_chrome_driver(profile_path=SESSION_DIR)
     driver.get("https://web.whatsapp.com/")
-    log("🔲 [*] Waiting for QR code in the opened browser (press ENTER any time to force success)...")
+    log("🔲 [*] Waiting for QR code in the opened browser (press ENTER to force success)...")
 
     enter_pressed = {'value': False}
-    def monitor_enter():
-        input()
-        enter_pressed['value'] = True
-    t = threading.Thread(target=monitor_enter, daemon=True)
-    t.start()
+    def monitor_enter(): input(); enter_pressed['value'] = True
+    t = threading.Thread(target=monitor_enter, daemon=True); t.start()
 
-    qr_xpath = '//canvas[@aria-label="Scan this QR code to link a device!"]'
-    qr_found = False
+    qr_xpath = '//canvas[@aria-label="Scan this QR code to link a device!"]'; qr_found = False
     for attempt in range(1, 4):
-        if enter_pressed['value']:
-            log("🟢 [*] Manual ENTER detected. Forcing login success!")
-            driver.quit()
-            return
-        try:
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.XPATH, qr_xpath))
-            )
-            qr_found = True
-            log(f"✅ [*] QR Code loaded (try {attempt}/3). Please scan now! 📱 (or press ENTER to bypass)")
-            break
-        except Exception:
-            log(f"⏳ [*] QR code not detected after {15*attempt}s. Retrying..." if attempt < 3 else "")
+        if enter_pressed['value']: log("🟢 [*] Manual ENTER detected. Forcing login success!"); driver.quit(); return
+        try: WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, qr_xpath))); qr_found = True
+        except Exception: log(f"⏳ [*] QR code not detected after {15*attempt}s. Retrying..." if attempt < 3 else "")
+        if qr_found:
+            log(f"✅ [*] QR Code loaded (try {attempt}/3). Please scan now! 📱 (or press ENTER to bypass)"); break
     if not qr_found:
         log("⚠️ [!] QR code did not appear in 45s. Closing browser.\n"
             "WARNING: All log messages before absl::InitializeLog() is called are written to STDERR\n"
-            "❌ [!] QR code did not appear in 45s. Is WhatsApp down or blocked? 😢")
-        driver.quit()
-        return
+            "❌ [!] QR code did not appear in 45s. Is WhatsApp down or blocked? 😢"); driver.quit(); return
 
     login_complete = False
     try:
         log("👀 [*] Waiting for you to scan QR... 🕵️‍♂️ (or press ENTER to bypass)")
         for _ in range(120):
-            if enter_pressed['value']:
-                log("🟢 [*] Manual ENTER detected. Forcing login success!")
-                driver.quit()
-                return
-            if not driver.find_elements(By.XPATH, qr_xpath):
-                log("🎉 [*] QR scanned, loading chats...")
-                break
+            if enter_pressed['value']: log("🟢 [*] Manual ENTER detected. Forcing login success!"); driver.quit(); return
+            if not driver.find_elements(By.XPATH, qr_xpath): log("🎉 [*] QR scanned, loading chats..."); break
             time.sleep(1)
-        WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.XPATH, '//div[@role="grid"]'))
-        )
+        WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.XPATH, '//div[@role="grid"]')))
         log("⏳ [*] Chats loaded. Waiting extra 10 seconds for session stability... 💾")
         for _ in range(10):
-            if enter_pressed['value']:
-                log("🟢 [*] Manual ENTER detected. Forcing login success!")
-                driver.quit()
-                return
+            if enter_pressed['value']: log("🟢 [*] Manual ENTER detected. Forcing login success!"); driver.quit(); return
             time.sleep(1)
         login_complete = True
-    except Exception:
-        pass
+    except Exception: pass
 
-    if login_complete:
-        log("✅ [+] Login successful. Closing browser... 🚀")
-    else:
-        if not enter_pressed['value']:
-            log("❌ [!] Login not detected in time. Closing browser.")
+    if login_complete: log("✅ [+] Login successful. Closing browser... 🚀")
+    else: log("❌ [!] Login not detected in time. Closing browser.")
     driver.quit()
 
-def send_messages(numbers, message):
+# --- Message & Attachment Sender (unified, works for all modes) ---
+def send_messages(numbers, message, files=None):
+    message = message if message and message.lower() != "none" else ""
     driver = get_chrome_driver(profile_path=SESSION_DIR)
     success, failure = 0, 0
     for idx, number in enumerate(numbers, start=1):
         sent = False
-        log(f"💬 [*] Sending message to {number} ({idx}/{len(numbers)})...")
+        log(f"💬 [*] Sending to {number} ({idx}/{len(numbers)})...")
         url = f"https://web.whatsapp.com/send?phone={number}&text={message}"
         driver.get(url)
         if not wait_for_element(driver, '//div[@role="grid"]', timeout=15):
@@ -239,100 +225,37 @@ def send_messages(numbers, message):
         else:
             for attempt in range(1, 4):
                 try:
-                    input_box = wait_for_element(driver, '//div[@contenteditable="true"][@data-tab="10"]', 10)
-                    if input_box:
-                        input_box.send_keys('\n')
-                        log(f"✅ [+] Message sent to {number}! ✉️ (try {attempt}/3)")
-                        sent = True
-                        success += 1
-                        break
-                    else:
-                        log(f"❗️ [!] ERROR: Message box not found for {number}. (try {attempt}/3)")
-                except Exception as e:
-                    log(f"❗️ [!] ERROR: {e} (try {attempt}/3)")
-                if attempt < 3:
-                    log(f"🔁 [*] Retrying message send in 5 seconds...")
-                    time.sleep(5)
-            if not sent:
-                log(f"❌ [!] Failed to send message to {number} after 3 tries.")
-                failure += 1
+                    # Step 1: Wait for message box, send message (already prefilled by URL), and "Enter"
+                    if message:
+                        input_box = wait_for_element(driver, '//div[@contenteditable="true"][@data-tab="10"]', 10)
+                        if input_box: input_box.send_keys('\n'); log("✉️ [*] Message enter."); time.sleep(2)
+                    # Step 2: If attachments provided, do file upload and send
+                    if files:
+                        safe_click_attach(driver)
+                        file_path = files[min(idx-1, len(files)-1)]
+                        if not os.path.isfile(file_path): raise Exception(f"File not found: {file_path}")
+                        try:
+                            file_input = driver.find_element(By.XPATH, '//input[contains(@accept,"image") or contains(@accept,"video")]')
+                        except Exception:
+                            try: file_input = driver.find_element(By.XPATH, '//input[@accept="*"]')
+                            except Exception: file_input = driver.find_element(By.XPATH, '//input[@type="file"]')
+                        if not file_input: raise Exception("Attachment file input not found.")
+                        file_input.send_keys(os.path.abspath(file_path)); time.sleep(2)
+                        send_btn = wait_for_element(driver, '//div[@role="button" and @aria-label="Send"]', 10)
+                        if not send_btn: send_btn = wait_for_element(driver, '//span[@data-icon="send"]', 5)
+                        if not send_btn: raise Exception("Send button not found.")
+                        send_btn.click(); log("📎 [*] Attachment sent.")
+                    sent = True; success += 1
+                    log(f"✅ [+] Sent to {number}! (try {attempt}/3)")
+                    break
+                except Exception as e: log(f"❗️ [!] ERROR: {e} (try {attempt}/3)")
+                if attempt < 3: log(f"🔁 [*] Retrying send in 5 seconds..."); time.sleep(5)
+            if not sent: log(f"❌ [!] Failed to send to {number} after 3 tries."); failure += 1
         wait_random()
     driver.quit()
     return success, failure
 
-def send_attachments_any(files, numbers, message):
-    driver = get_chrome_driver(profile_path=SESSION_DIR)
-    success, failure = 0, 0
-    for idx, number in enumerate(numbers, start=1):
-        sent = False
-        file_path = files[min(idx-1, len(files)-1)]
-        if not os.path.isfile(file_path):
-            log(f"❗️ [!] Attachment file not found: {file_path}")
-            failure += 1
-            continue
-        log(f"📎 [*] Sending attachment to {number} ({idx}/{len(numbers)})...")
-        url = f"https://web.whatsapp.com/send?phone={number}"
-        driver.get(url)
-        if not wait_for_element(driver, '//div[@role="grid"]', timeout=15):
-            log(f"❗️ [!] ERROR: Chat not loaded for {number}. Not retrying.")
-            failure += 1
-            continue
-        for attempt in range(1, 4):
-            try:
-                # Message first, then file, then wait, then send
-                if message:
-                    input_box = wait_for_element(driver, '//div[@contenteditable="true"][@data-tab="10"]', 10)
-                    if input_box:
-                        input_box.clear()
-                        input_box.send_keys(message)
-                        log(f"📝 [*] Entered message for {number}, waiting 2s before attaching...")
-                        time.sleep(2)
-                safe_click_attach(driver)
-                file_input = None
-                try:
-                    file_input = driver.find_element(By.XPATH, '//input[contains(@accept,"image") or contains(@accept,"video")]')
-                except Exception:
-                    try:
-                        file_input = driver.find_element(By.XPATH, '//input[@accept="*"]')
-                    except Exception:
-                        file_input = driver.find_element(By.XPATH, '//input[@type="file"]')
-                if not file_input:
-                    raise Exception("Attachment file input not found.")
-                file_input.send_keys(os.path.abspath(file_path))
-                log(f"📎 [*] Attached file for {number}, waiting 2s before sending...")
-                time.sleep(2)
-                send_btn = wait_for_element(driver, '//div[@role="button" and @aria-label="Send"]', 10)
-                if not send_btn:
-                    send_btn = wait_for_element(driver, '//span[@data-icon="send"]', 5)
-                if not send_btn:
-                    raise Exception("Send button not found.")
-                send_btn.click()
-                log(f"✅ [+] Attachment sent to {number}! 📎 (try {attempt}/3)")
-                sent = True
-                success += 1
-                break
-            except Exception as e:
-                log(f"❗️ [!] ERROR: {e} (try {attempt}/3)")
-            if attempt < 3:
-                log(f"🔁 [*] Retrying attachment send in 5 seconds...")
-                time.sleep(5)
-        if not sent:
-            log(f"❌ [!] Failed to send attachment to {number} after 3 tries.")
-            failure += 1
-        wait_random()
-    driver.quit()
-    return success, failure
-
-def send_from_excel(excel_path, col, message, attachment_path):
-    numbers = get_numbers_from_excel(excel_path, col)
-    log(f"📋 [*] Action: MSG. Total contacts: {len(numbers)}")
-    files = split_multi_input(attachment_path) if attachment_path else []
-    if files:
-        s, f = send_attachments_any(files, numbers, message)
-    else:
-        s, f = send_messages(numbers, message)
-    generate_html_report(s, f)
-
+# --- HTML Report (your exact style) ---
 def generate_html_report(success, failure):
     total = success + failure
     html_content = f"""<!DOCTYPE html>
@@ -357,9 +280,9 @@ def generate_html_report(success, failure):
     }}
     body::before {{
         content: "";
-        background: #121212;
+        background: url('src/bg.jpg') no-repeat center center fixed;
         background-size: cover;
-        filter: blur(8px);
+        filter: blur(10px) brightness(0.7);
         position: absolute;
         top: 0;
         left: 0;
@@ -374,7 +297,7 @@ def generate_html_report(success, failure):
         left: 0;
         right: 0;
         bottom: 0;
-        background-color: rgba(0, 0, 0, 0.6);
+        background-color: rgba(0, 0, 0, 0.65);
         z-index: -1;
     }}
     .container {{
@@ -424,6 +347,7 @@ def generate_html_report(success, failure):
         margin-bottom: 20px;
         text-align: center;
         font-size: 2em;
+        text-shadow: 0 2px 16px #000, 0 2px 8px #333;
     }}
     button {{
         padding: 10px 20px;
@@ -503,57 +427,45 @@ def generate_html_report(success, failure):
 </html>"""
     report_path = os.path.join(os.getcwd(), "Report.html")
     try:
-        with open(report_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        with open(report_path, "w", encoding="utf-8") as f: f.write(html_content)
         webbrowser.open("file:///" + report_path)
         log(f"📊 [*] HTML Report generated: {report_path}")
     except Exception as e:
         log(f"Error generating/opening HTML report: {e}")
 
+# --- Main CLI/Universal Parser ---
 def main():
     parser = argparse.ArgumentParser(description='💬 WhatsApp Automation CLI 💬')
     subparsers = parser.add_subparsers(dest='command', help='Sub-commands')
-
     subparsers.add_parser('login', help='Login to WhatsApp Web')
 
-    msg_parser = subparsers.add_parser('msg', help='Send message, attachment, or both')
-    msg_parser.add_argument('arg1', nargs='?', type=str, help='Attachment file OR Phone number(s)')
-    msg_parser.add_argument('arg2', nargs='?', type=str, help='Phone number(s) OR Message')
-    msg_parser.add_argument('arg3', nargs='?', type=str, help='Message (optional)')
-    msg_parser.add_argument('-exl', type=str, help='Excel/CSV file')
-    msg_parser.add_argument('-col', type=str, help='Column in Excel/CSV for phone numbers (letter or header name)')
-    msg_parser.add_argument('-fileloc', type=str, help='Attachment file path(s) for each Excel/CSV row, comma-separated')
+    # Bulk (Excel/CSV): message first, then args, then file(s) optional
+    exl_parser = subparsers.add_parser('exl', help='Bulk send (Excel/CSV, message first)')
+    exl_parser.add_argument('message', type=str, help='Message (required)')
+    exl_parser.add_argument('-exl', type=str, required=True, help='Excel/CSV file')
+    exl_parser.add_argument('-col', type=str, required=True, help='Column letter or header name')
+    exl_parser.add_argument('-fileloc', type=str, help='Attachment file(s), optional (comma-separated)')
+
+    # CLI direct: message, then numbers, then files (all as args)
+    msg_parser = subparsers.add_parser('msg', help='Send (CLI, single or multi, message first)')
+    msg_parser.add_argument('message', type=str, help='Message (required)')
+    msg_parser.add_argument('numbers', type=str, help='Number(s), comma/semicolon separated')
+    msg_parser.add_argument('-fileloc', type=str, help='Attachment file(s), optional (comma-separated)')
 
     args = parser.parse_args()
 
     if args.command == 'login':
         login_whatsapp()
+    elif args.command == 'exl':
+        numbers = get_numbers_from_excel(args.exl, args.col)
+        files = split_multi_input(args.fileloc) if args.fileloc else None
+        s, f = send_messages(numbers, args.message, files)
+        generate_html_report(s, f)
     elif args.command == 'msg':
-        if args.exl and args.col:
-            send_from_excel(args.exl, args.col, args.arg3 if args.arg3 else args.arg2, args.fileloc)
-        else:
-            if args.arg1 and args.arg2 and not args.arg3:
-                if (args.arg1.strip().startswith("+") or args.arg1.strip()[0].isdigit()) and not os.path.isfile(args.arg1):
-                    numbers = split_multi_input(args.arg1)
-                    message = args.arg2
-                    s, f = send_messages(numbers, message)
-                    generate_html_report(s, f)
-                else:
-                    files = split_multi_input(args.arg1)
-                    numbers = split_multi_input(args.arg2)
-                    s, f = send_attachments_any(files, numbers, None)
-                    generate_html_report(s, f)
-            elif args.arg1 and args.arg2 and args.arg3:
-                files = split_multi_input(args.arg1)
-                numbers = split_multi_input(args.arg2)
-                message = args.arg3
-                s, f = send_attachments_any(files, numbers, message)
-                generate_html_report(s, f)
-            elif args.arg1 and not args.arg2:
-                numbers = split_multi_input(args.arg1)
-                print("❗️ [!] No message or attachment to send.")
-            else:
-                parser.print_help()
+        numbers = split_multi_input(args.numbers)
+        files = split_multi_input(args.fileloc) if args.fileloc else None
+        s, f = send_messages(numbers, args.message, files)
+        generate_html_report(s, f)
     else:
         parser.print_help()
 
