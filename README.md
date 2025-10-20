@@ -4,7 +4,6 @@
 
 ![Banner](https://github.com/user-attachments/assets/bace84ee-13c6-41dc-a82b-e4f83eb54318)
 
-
 Welcome to **WabulkXpress** – the cutting-edge tool that automates your WhatsApp messaging campaigns with smart AI, personalized images, and robust anti-ban features. Perfect for marketers, businesses, and power users who demand speed, security, and creativity.
 
 [![GitHub Release](https://img.shields.io/github/v/release/Parth-Sancheti-5/WabulkXpress?style=for-the-badge)](https://github.com/Parth-Sancheti-5/WabulkXpress/releases)  [![License: MIT](https://img.shields.io/github/license/Parth-Sancheti-5/WabulkXpress?style=for-the-badge)](LICENSE)  [![Downloads](https://img.shields.io/github/downloads/Parth-Sancheti-5/WabulkXpress/total?style=for-the-badge)](https://github.com/Parth-Sancheti-5/WabulkXpress/releases)
@@ -31,8 +30,9 @@ Welcome to **WabulkXpress** – the cutting-edge tool that automates your WhatsA
 - **📊 Real-Time Analytics & Reporting:**  
   Stay informed with detailed HTML reports that track your message success rates and highlight opportunities for improvement.
 
-- **🏷️ @PSG™ Custom Build KeyXSimulation™ Technology:**
+- **🏷️ @PSG™ Custom Build KeyXSimulation™ Technology:**  
   Powered by proprietary @PSG™ Custom Build methodologies and our revolutionary KeyXSimulation™ Technology, WabulkXpress offers unparalleled performance and a truly next-generation messaging experience.
+
 ---
 
 ## 📸 Screenshots & Demo
@@ -40,17 +40,13 @@ Welcome to **WabulkXpress** – the cutting-edge tool that automates your WhatsA
 Take a look at WabulkXpress in action:
 
 ### Dashboard & Messaging Editor
-<img src="https://github.com/user-attachments/assets/8bda10e1-a376-40be-85e4-4517c7f88d57" width="800" height="450">
-
-
+![Dashboard & Messaging Editor](https://github.com/user-attachments/assets/8bda10e1-a376-40be-85e4-4517c7f88d57)
 
 ### AI Integration & Customization
-<img src="https://github.com/user-attachments/assets/f2f830a3-30af-4620-9180-73777d23d84f" width="150" height="200">      <img src="https://github.com/user-attachments/assets/9e369106-0a84-4a64-b198-90cbdc636e9a" width="320" height="200">
-
-
+![AI Integration](https://github.com/user-attachments/assets/f2f830a3-30af-4620-9180-73777d23d84f)      ![Customization](https://github.com/user-attachments/assets/9e369106-0a84-4a64-b198-90cbdc636e9a)
 
 ### Custom Image Generator
-<img src="https://github.com/user-attachments/assets/9370e775-8f7e-4664-b358-56c51c50fe2c" width="800" height="450">
+![Custom Image Generator](https://github.com/user-attachments/assets/9370e775-8f7e-4664-b358-56c51c50fe2c)
 
 ---
 
@@ -60,13 +56,6 @@ Before you begin, make sure you have:
 
 - **Windows OS:**  
   WabulkXpress is exclusively designed for Windows.
-
-- **WhatsApp Beta Application:**  
-  Required for seamless messaging through WhatsApp Web.  
-
-    ### Get It On Microsoft Store
-<a href="https://apps.microsoft.com/detail/9nbdxk71nk08?hl=en-US&gl=US"><image src="https://github.com/user-attachments/assets/04c520ba-6c0e-4213-b4c9-c191630d89a6" height="90" width="260" ></a>
-
 
 - **Google Chrome:**  
   For the best messaging experience, install the latest version of [Google Chrome](https://www.google.com/chrome/).
@@ -80,7 +69,7 @@ Before you begin, make sure you have:
 
 ### ✨ Get WabulkXpress Now! ✨
 
-<a href="https://github.com/Parth-Sancheti-5/WabulkXpress/releases"><image src="https://raw.githubusercontent.com/flocke/andOTP/master/assets/badges/get-it-on-github.png" height="100" width="250" ></a>
+[![Get It on GitHub](https://raw.githubusercontent.com/flocke/andOTP/master/assets/badges/get-it-on-github.png)](https://github.com/Parth-Sancheti-5/WabulkXpress/releases)
 
 ### Installation Steps:
 1. **Download the EXE:**  
@@ -125,7 +114,6 @@ Before you begin, make sure you have:
   Hit the **"Start"** button, then sit back and monitor real-time logs as your messages are sent securely.
 
 ---
-
 
 ## ⚙️ How It Works
 
