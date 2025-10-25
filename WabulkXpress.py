@@ -1,16 +1,21 @@
 #!/usr/bin/env python
 import os
 import re
+import sys  # <-- ADD THIS
+import ctypes # <-- ADD THIS
 import google.generativeai as genai
 import shutil
 import time
 import random
+import math
 import threading
 import queue
 import webbrowser
 import requests
+import tkinterdnd2
 import pyautogui
 import openpyxl
+from io import StringIO
 import gc
 from tkinter import filedialog, messagebox, colorchooser, Label
 from PIL import Image, ImageTk, ImageDraw, ImageFont, ImageOps
@@ -24,6 +29,7 @@ import struct
 import urllib.parse
 import logging
 import sys
+import json  # <-- ADD THIS IMPORT
 logger = logging.getLogger(__name__)
 import logging
 from selenium import webdriver
@@ -53,12 +59,15 @@ LIGHT_INNER = "#EAEAEA"
 
 # ----------------------- GLOBAL CONSTANTS & PATHS -----------------------
 CURRENT_VERSION = "21"
-GITHUB_API_URL = "https://api.github.com/repos/Parth-Sancheti-5/WabulkXpress/releases/latest"
-GITHUB_RELEASES_URL = "https://github.com/Parth-Sancheti-5/WabulkXpress/"
-FLAG_FILE = "first_run.flag"
+GITHUB_API_URL = "https://api.github.com/repos/ParthSancheti/WabulkXpress/releases/latest"
+GITHUB_RELEASES_URL = "https://github.com/ParthSancheti/WabulkXpress/"
+LICENSE_FILE = os.path.join(os.getcwd(), "license.dat") # <-- REPLACED FLAG_FILE
 BIN_FOLDER = os.path.join(os.getcwd(), "bin")
 TITLE_ICON_PATH = os.path.join(BIN_FOLDER, "loco.ico")
 LOGO_PATH = os.path.join(BIN_FOLDER, "Logo.png")
+MY_PROFILE_PIC = os.path.join(BIN_FOLDER, "profile_pic.jpg")
+GITHUB_RELEASES_URL = "https://github.com/ParthSancheti/WabulkXpress/"
+GITHUB_PROFILE_URL="https://github.com/ParthSancheti/"
 WHATSAPP_BETA = os.path.join(BIN_FOLDER, "WhatsApp_Beta.lnk")
 OUTPUT_IMG_FOLDER = os.path.join(os.getcwd(), "output_img")
 SESSION_DIR = os.path.join(os.getcwd(), "selenium_session")
@@ -73,6 +82,8 @@ UP_ARROW_LIGHT_PATH = os.path.join(BIN_FOLDER, "up_arrow.png")
 UP_ARROW_DARK_PATH = os.path.join(BIN_FOLDER, "up_arrow_dark.png")
 DOWN_ARROW_LIGHT_PATH = os.path.join(BIN_FOLDER, "down_arrow.png")
 # ... (other paths)
+UPLOAD_ICON_LIGHT_PATH = os.path.join(BIN_FOLDER, "upload_icon_light.png") # <-- ADD THIS
+UPLOAD_ICON_DARK_PATH = os.path.join(BIN_FOLDER, "upload_icon_dark.png")
 UPDATE_CHECK_FILE = os.path.join(os.getcwd(), "update_check.dat")
 # ...
 DOWN_ARROW_DARK_PATH = os.path.join(BIN_FOLDER, "down_arrow_dark.png")
@@ -148,26 +159,47 @@ def selenium_send_bulk(numbers, messages, attachments, min_delay, max_delay, gui
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--lang=en')
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    driver.maximize_window()
+
+    # --- Added Debug Log ---
+    print("DEBUG [selenium_send_bulk]: Initializing WebDriver...")
+    # --- End Debug Log ---
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.maximize_window()
+        # --- Added Debug Log ---
+        print("DEBUG [selenium_send_bulk]: WebDriver initialized successfully.")
+        # --- End Debug Log ---
+    except Exception as e:
+        gui_logger.log(f"❌ Critical Error: Failed to initialize WebDriver: {e}")
+        print(f"DEBUG [selenium_send_bulk]: WebDriver initialization FAILED: {e}")
+        return 0, len(numbers) # Return 0 success, all fail if driver fails
+
     success, failure = 0, 0
 
     # --- XPATH SELECTORS ---
     INPUT_BOX_XPATH = '//div[@contenteditable="true"][@aria-placeholder="Type a message"]'
-    # Selectors for the checkmark icons in the *last* message sent by the user
-    # This targets messages with the 'message-out' class and looks for the status icon span within them.
-    # We use 'last()' to target the most recent outgoing message.
     LAST_MESSAGE_STATUS_XPATH = (
         '(//div[contains(@class, "message-out")]//span[contains(@data-icon, "msg-check") '
         'or contains(@data-icon, "msg-dblcheck") '
         'or contains(@data-icon, "msg-dblcheck-ack")])[last()]'
     )
+    # --- ** MORE ROBUST CHAT PANEL XPATH ** ---
+    CHAT_PANEL_XPATH = '//div[@data-testid="conversation-panel-body"] | //div[@role="grid"]'
     # --- END XPATH SELECTORS ---
 
+    # --- Added Debug Log ---
+    print(f"DEBUG [selenium_send_bulk]: Starting loop for {len(numbers)} numbers.")
+    # --- End Debug Log ---
+
     for idx, number in enumerate(numbers):
+        # --- Added Debug Log ---
+        print(f"DEBUG [selenium_send_bulk]: Processing index {idx}, number {number}")
+        # --- End Debug Log ---
+
         # Check if the stop button was pressed
         if not gui_logger.gui.sending:
             gui_logger.log("🛑 Stop signal received. Halting process...")
+            print("DEBUG [selenium_send_bulk]: Stop signal received in loop.")
             break
 
         msg = messages[idx] if isinstance(messages, list) else messages
@@ -176,159 +208,259 @@ def selenium_send_bulk(numbers, messages, attachments, min_delay, max_delay, gui
 
         # Open chat
         url = f"https://web.whatsapp.com/send?phone={number}"
+        # --- Added Debug Log ---
+        print(f"DEBUG [selenium_send_bulk]: Navigating to URL: {url}")
+        # --- End Debug Log ---
         driver.get(url)
 
         # Wait for chat to load (main panel)
         try:
-            WebDriverWait(driver, 25).until(
-                EC.presence_of_element_located((By.XPATH, '//div[@data-testid="conversation-panel-body"] | //div[@role="grid"]')) # Added alternative selector
+            # --- Added Debug Log ---
+            print(f"DEBUG [selenium_send_bulk]: Waiting for chat panel element: {CHAT_PANEL_XPATH}")
+            # --- End Debug Log ---
+            WebDriverWait(driver, 30).until( # Increased wait to 30s
+                EC.presence_of_element_located((By.XPATH, CHAT_PANEL_XPATH))
             )
+            # --- Added Debug Log ---
+            print(f"DEBUG [selenium_send_bulk]: Chat panel loaded for {number}.")
+            # --- End Debug Log ---
             time.sleep(random.uniform(1.5, 2.5)) # Slightly longer sleep after load
+
         except TimeoutException:
-            gui_logger.log(f"❗️ Chat panel did not load for {number}. Skipping.")
+            gui_logger.log(f"❗️ Chat panel did not load for {number} within 30s. Skipping.")
+            print(f"DEBUG [selenium_send_bulk]: TimeoutException waiting for chat panel for {number}.")
             failure += 1
-            continue
+            continue # Skip to the next number
         except Exception as e:
              gui_logger.log(f"❗️ Error loading chat for {number}: {e}. Skipping.")
+             print(f"DEBUG [selenium_send_bulk]: Exception loading chat panel for {number}: {e}")
              failure += 1
-             continue
+             continue # Skip to the next number
 
 
         sent_something = False # Track if we *attempted* to send anything
 
+        # --- Try block for sending actions ---
         try:
-            # --- 1. SEND ATTACHMENT ---
+            # --- 1. SEND ATTACHMENT (AND CAPTION) ---
             if attachment and os.path.exists(attachment):
+                print(f"DEBUG [selenium_send_bulk]: Attempting to send attachment: {attachment}")
                 try:
+                    attach_btn_xpath = '//span[@data-icon="plus-rounded"] | //span[@data-icon="attach-menu-plus"]'
+                    print(f"DEBUG [selenium_send_bulk]: Waiting for attach button: {attach_btn_xpath}")
                     attach_btn = WebDriverWait(driver, 15).until(
-                        EC.element_to_be_clickable((By.XPATH, '//span[@data-icon="plus-rounded"] | //span[@data-icon="attach-menu-plus"]')) # Added alternative selector
+                        EC.element_to_be_clickable((By.XPATH, attach_btn_xpath))
                     )
                     attach_btn.click()
-                    time.sleep(0.5) # Small pause after click
+                    print("DEBUG [selenium_send_bulk]: Attach button clicked.")
+                    time.sleep(0.5)
 
-                    # Use a more specific selector for file input related to documents/media
+                    # --- REVERTED: Using the original file input XPath ---
+                    file_input_xpath = '//input[@accept="image/*,video/mp4,video/3gpp,video/quicktime"] | //input[@type="file"]'
+                    print(f"DEBUG [selenium_send_bulk]: Finding file input: {file_input_xpath}")
                     file_input = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, '//input[@accept="image/*,video/mp4,video/3gpp,video/quicktime"] | //input[@type="file"]'))
+                        EC.presence_of_element_located((By.XPATH, file_input_xpath))
                     )
+                    print("DEBUG [selenium_send_bulk]: Sending keys to file input.")
                     file_input.send_keys(os.path.abspath(attachment))
-                    time.sleep(0.5) # Pause after sending keys
+                    time.sleep(0.5)
+                    # --- END REVERT ---
 
-                    # Wait for the preview screen's send button
-                    send_btn = WebDriverWait(driver, 30).until( # Increased wait for potentially large files
-                        EC.element_to_be_clickable((By.XPATH, '//span[@data-icon="send"]'))
+
+                    # --- Combine caption and attachment send ---
+                    if msg:
+                        try:
+                            # Wait for the caption box in the preview modal
+                            caption_box_xpath = '//div[@data-testid="preview-caption-input-container"]//div[@contenteditable="true"]'
+                            print(f"DEBUG [selenium_send_bulk]: Waiting for caption box: {caption_box_xpath}")
+                            caption_box = WebDriverWait(driver, 10).until(
+                                EC.element_to_be_clickable((By.XPATH, caption_box_xpath))
+                            )
+                            
+                            # --- CHANGED: Always use clipboard paste for caption ---
+                            print("DEBUG [selenium_send_bulk]: Caption box found. Sending caption via clipboard paste.")
+                            copy_text_to_clipboard(msg)
+                            time.sleep(0.3)
+                            caption_box.send_keys(Keys.CONTROL, 'v')
+                            # --- END CHANGE ---
+                            
+                            gui_logger.log(f"✍️ Added caption for {number}")
+                            msg = None # Clear msg so it doesn't send as a separate message
+                        except TimeoutException:
+                            print("DEBUG [selenium_send_bulk]: Caption box not found. Sending attachment without caption.")
+                        except Exception as cap_err:
+                            print(f"DEBUG [selenium_send_bulk]: Error adding caption: {cap_err}")
+                            # msg remains, will be sent as separate message
+
+                    # Wait 1 sec for modal to be fully responsive
+                    time.sleep(1) 
+                    
+                    # This is the XPath for the send button *inside* the attachment modal
+                    send_btn_xpath = '//button[@aria-label="Send"]'
+                    print(f"DEBUG [selenium_send_bulk]: Waiting for attachment send button: {send_btn_xpath}")
+                    
+                    send_btn = WebDriverWait(driver, 30).until( # Increased wait
+                        EC.element_to_be_clickable((By.XPATH, send_btn_xpath))
                     )
-                    send_btn.click()
+                    
+                    # Use a more reliable JavaScript click
+                    driver.execute_script("arguments[0].click();", send_btn)
+                    
+                    print("DEBUG [selenium_send_bulk]: Attachment send button clicked (via JS).")
                     gui_logger.log(f"📎 Attachment sending initiated to {number}")
                     sent_something = True
 
-                    # Wait for preview modal to close
+                    print("DEBUG [selenium_send_bulk]: Waiting for attachment modal (send button) to disappear.")
                     WebDriverWait(driver, 15).until(EC.staleness_of(send_btn))
-                    time.sleep(0.5) # Pause after modal closes
+                    print("DEBUG [selenium_send_bulk]: Attachment modal closed.")
+                    time.sleep(0.5)
 
-                except TimeoutException:
-                    gui_logger.log(f"❌ Timed out waiting for attachment elements for {number}.")
-                    # No failure increment here yet, maybe message will succeed
+                except TimeoutException as te:
+                    gui_logger.log(f"❌ Timed out during attachment process for {number}: {te}")
+                    print(f"DEBUG [selenium_send_bulk]: TimeoutException during attachment: {te}")
+                    # Continue to try sending message if available
                 except Exception as attach_err:
                      gui_logger.log(f"❌ Error sending attachment to {number}: {attach_err}")
-                     # No failure increment here yet
+                     print(f"DEBUG [selenium_send_bulk]: Exception during attachment: {attach_err}")
+                     # Continue to try sending message
 
-            # --- 2. SEND MESSAGE ---
+            # --- 2. SEND MESSAGE (Only if no attachment was sent OR captioning failed) ---
             if msg:
+                print(f"DEBUG [selenium_send_bulk]: Attempting to send message.")
                 try:
-                    input_box = WebDriverWait(driver, 15).until( # Reduced wait slightly
+                    print(f"DEBUG [selenium_send_bulk]: Waiting for input box: {INPUT_BOX_XPATH}")
+                    input_box = WebDriverWait(driver, 15).until(
                         EC.element_to_be_clickable((By.XPATH, INPUT_BOX_XPATH))
                     )
-                    # Use JavaScript click as a fallback if normal click is intercepted
+                    print("DEBUG [selenium_send_bulk]: Input box found. Clicking.")
+                    # Use JavaScript click as a fallback
                     try:
                         input_box.click()
                     except Exception:
+                         print("DEBUG [selenium_send_bulk]: Normal click failed, trying JS click.")
                          driver.execute_script("arguments[0].click();", input_box)
 
-                    time.sleep(0.5) # Increased sleep
+                    time.sleep(0.5)
 
-                    # Send message text
-                    def _has_non_bmp(s: str) -> bool:
-                        return any(ord(c) > 0xFFFF for c in s)
+                    # --- RESTORED: Typing animation for simple text, paste for complex ---
+                    print("DEBUG [selenium_send_bulk]: Sending message keys.")
+                    def _has_non_bmp(s: str) -> bool: return any(ord(c) > 0xFFFF for c in s)
 
-                    if _has_non_bmp(msg):
+                    if '\n' in msg or _has_non_bmp(msg):
+                        print("DEBUG [selenium_send_bulk]: Message has newlines or special chars. Using clipboard paste.")
                         copy_text_to_clipboard(msg)
                         time.sleep(0.3)
                         input_box.send_keys(Keys.CONTROL, 'v')
                     else:
-                        # Send char by char (more human-like)
+                        # Type out simple, single-line messages
+                        print("DEBUG [selenium_send_bulk]: Simple message. Typing character by character.")
                         for char in msg:
                             input_box.send_keys(char)
-                            time.sleep(random.uniform(0.02, 0.08)) # Small random delay between chars
+                            time.sleep(random.uniform(0.02, 0.08))
+                    # --- END RESTORED LOGIC ---
 
-                    time.sleep(0.5) # Pause before sending
+                    time.sleep(0.5)
+                    print("DEBUG [selenium_send_bulk]: Sending ENTER key.")
                     input_box.send_keys(Keys.ENTER)
                     gui_logger.log(f"✅ Message sending initiated to {number}")
                     sent_something = True
+                    print("DEBUG [selenium_send_bulk]: Message send initiated.")
 
-                except TimeoutException:
-                    gui_logger.log(f"❌ Timed out waiting for message input box for {number}.")
-                    # Fallback might still work if msg exists
+                except TimeoutException as te:
+                    gui_logger.log(f"❌ Timed out waiting for message input box for {number}: {te}")
+                    print(f"DEBUG [selenium_send_bulk]: TimeoutException waiting for input box: {te}")
+                    # Failure will be counted later if nothing was sent
                 except Exception as msg_err:
                      gui_logger.log(f"❌ Error typing/sending message to {number}: {msg_err}")
-
+                     print(f"DEBUG [selenium_send_bulk]: Exception sending message: {msg_err}")
+                     # Failure will be counted later
 
         except Exception as outer_err:
             # Catch unexpected errors during the main send block
             gui_logger.log(f"❌ Unexpected error during send process for {number}: {outer_err}")
+            print(f"DEBUG [selenium_send_bulk]: Outer exception during send block: {outer_err}")
 
 
-        # --- 5. WAIT FOR SEND CONFIRMATION (NEW) ---
+        # --- 5. WAIT FOR SEND CONFIRMATION (only if something was attempted) ---
+        action_succeeded = False # Track if this contact was successful
         if sent_something:
+            print(f"DEBUG [selenium_send_bulk]: Waiting for send confirmation checkmark...")
             try:
-                # Wait up to 30 seconds for the last outgoing message to show a checkmark
                 WebDriverWait(driver, 30).until(
                     EC.presence_of_element_located((By.XPATH, LAST_MESSAGE_STATUS_XPATH))
                 )
                 gui_logger.log(f"✔️ Send confirmed for {number}")
-                success += 1 # Increment success *only* after confirmation
+                print(f"DEBUG [selenium_send_bulk]: Send confirmed for {number}.")
+                action_succeeded = True # Mark as successful
             except TimeoutException:
-                gui_logger.log(f"⚠️ Send confirmation checkmark not found for {number} within 30s. Assuming failure for tally.")
-                failure += 1 # Assume failure if no checkmark appears
+                gui_logger.log(f"⚠️ Send confirmation checkmark not found for {number} within 30s.")
+                print(f"DEBUG [selenium_send_bulk]: Timeout waiting for checkmark for {number}.")
+                # Keep action_succeeded as False
             except Exception as check_err:
-                gui_logger.log(f"⚠️ Error checking send status for {number}: {check_err}. Assuming failure for tally.")
-                failure += 1
-        elif not sent_something:
-             # If we didn't even attempt to send anything (e.g., chat load failed earlier or errors prevented send attempts)
-             # This case might already be covered by the initial chat load check, but added for clarity.
-             # We already incremented failure earlier if chat load failed.
-             # If send attempts failed but chat loaded, we log errors but don't double-count failure here.
-             # Only increment failure if no send was attempted AND chat *did* load.
-             if 'failure' not in locals() or failure == locals().get('initial_failure_count', 0): # Check if failure wasn't already counted
-                failure +=1
+                gui_logger.log(f"⚠️ Error checking send status for {number}: {check_err}")
+                print(f"DEBUG [selenium_send_bulk]: Exception waiting for checkmark for {number}: {check_err}")
+                # Keep action_succeeded as False
+        else:
+            # If no send was even attempted (due to earlier errors), it's definitely a failure for this contact
+            print(f"DEBUG [selenium_send_bulk]: No send action was attempted for {number}.")
+            action_succeeded = False
+
+        # --- Tally based on confirmation or attempt failure ---
+        if action_succeeded:
+            success += 1
+        else:
+            failure += 1
+        print(f"DEBUG [selenium_send_bulk]: Tally update -> Success: {success}, Failure: {failure}")
 
 
         # --- 6. DELAY LOGIC ---
         if not gui_logger.gui.sending:
             gui_logger.log("🛑 Stop signal received. Halting process...")
+            print("DEBUG [selenium_send_bulk]: Stop signal received before delay.")
             break
 
         random_delay = random.uniform(min_delay, max_delay)
         gui_logger.log(f"⏳ Waiting for {random_delay:.2f} seconds before next contact...")
+        print(f"DEBUG [selenium_send_bulk]: Starting delay of {random_delay:.2f}s")
 
         # Sleep incrementally
-        for _ in range(int(random_delay)):
+        start_delay_time = time.time()
+        while time.time() - start_delay_time < random_delay:
             if not gui_logger.gui.sending: break
-            time.sleep(1)
-        # Sleep for remaining fraction
-        if gui_logger.gui.sending:
-             time.sleep(random_delay - int(random_delay))
+            time.sleep(0.1) # Check frequently
+
+        if not gui_logger.gui.sending: # Check again after loop
+             print("DEBUG [selenium_send_bulk]: Stop signal received during delay.")
+             break
 
 
         # --- 7. 10 Contact Pause ---
         if (idx + 1) % 10 == 0 and (idx + 1) < len(numbers) and gui_logger.gui.sending:
             gui_logger.log(f"⏸️ 10 contacts processed. Pausing for 30 seconds...")
-            for _ in range(30):
-                if not gui_logger.gui.sending: break
-                time.sleep(1)
+            print(f"DEBUG [selenium_send_bulk]: Starting 30s pause after contact {idx+1}.")
+            start_pause_time = time.time()
+            while time.time() - start_pause_time < 30:
+                 if not gui_logger.gui.sending: break
+                 time.sleep(0.1)
 
-    driver.quit()
+            if not gui_logger.gui.sending:
+                 print("DEBUG [selenium_send_bulk]: Stop signal received during 30s pause.")
+                 break
+            print(f"DEBUG [selenium_send_bulk]: Finished 30s pause.")
+
+    # --- End of Loop ---
+    print(f"DEBUG [selenium_send_bulk]: Loop finished or broken.")
+    try:
+        driver.quit()
+        print(f"DEBUG [selenium_send_bulk]: WebDriver quit successfully.")
+    except Exception as e:
+        print(f"DEBUG [selenium_send_bulk]: Error quitting WebDriver: {e}")
+
     gui_logger.log(f"📊 Done: Success={success}, Failure={failure}")
+    print(f"DEBUG [selenium_send_bulk]: Function returning Success={success}, Failure={failure}")
     return success, failure
+
+
 
 # ----------------------- UTILITY FUNCTIONS -----------------------
 def center_window(win):
@@ -360,39 +492,85 @@ def copy_file_to_clipboard(file_path):
         win32clipboard.CloseClipboard()
     except Exception as e:
         print(f"Error copying file to clipboard: {e}")
+
+
+# ----------------------- UTILITY FUNCTIONS -----------------------
+
+# --- ADD THIS FUNCTION HERE ---
+def round_corners(image_path, size=(200, 200), corner_radius=20):
+    """Rounds the corners of an image and returns a CTkImage."""
+    try:
+        img = Image.open(image_path).resize(size, Image.Resampling.LANCZOS).convert("RGBA")
+        mask = Image.new("L", size, 0)
+        draw = ImageDraw.Draw(mask)
+        # Draw rounded rectangle
+        draw.rounded_rectangle((0, 0) + size, radius=corner_radius, fill=255)
+        img.putalpha(mask)
+        return ctk.CTkImage(light_image=img, dark_image=img, size=size)
+    except Exception as e:
+        print(f"Error rounding corners: {e}")
+        return None
+# ----------------------------------------------------------------
 # ----------------------- CUSTOM WIDGET CLASSES -----------------------
 class HoverHint(ctk.CTkToplevel):
     def __init__(self, widget, hint_text, image_path, *args, **kwargs):
         super().__init__(widget.master, *args, **kwargs)
         self.overrideredirect(True)
-        self.geometry("300x120")
+        self.geometry("350x150")
         self.configure(bg="transparent")
         
-        mode = ctk.get_appearance_mode().lower()
-        fg_color = DARK_INNER if mode == "dark" else LIGHT_INNER
-        
-        self.frame = ctk.CTkFrame(self, corner_radius=12, fg_color=fg_color) # Theme
+        self.frame = ctk.CTkFrame(self, corner_radius=15)
         self.frame.pack(expand=True, fill="both", padx=5, pady=5)
         self.text_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.text_frame.pack(side="left", fill="both", expand=True, padx=(10, 5), pady=10)
-        self.hint_label = ctk.CTkLabel(self.text_frame, text=hint_text, anchor="w", justify="left", wraplength=150)
+        self.text_frame.pack(side="left", fill="both", expand=True, padx=(15, 10), pady=10)
+        
+        self.hint_label = ctk.CTkLabel(self.text_frame, 
+                                       text=hint_text, 
+                                       anchor="w", 
+                                       justify="left", 
+                                       wraplength=170,
+                                       font=("Arial", 14))
         self.hint_label.pack(expand=True, fill="both")
+        
+        # --- Rounded Image Logic ---
         try:
-            img = Image.open(image_path)
-            box_width = 300
-            image_width = int(box_width * 0.4)
-            img = img.resize((image_width, image_width), Image.Resampling.LANCZOS)
-            self.hint_image = ctk.CTkImage(light_image=img, size=(image_width, image_width))
+            box_width = 350
+            image_width = int(box_width * 0.35)
+            size = (image_width, image_width)
+            corner_radius = 15
+
+            img = Image.open(image_path).resize(size, Image.Resampling.LANCZOS).convert("RGBA")
+            mask = Image.new("L", size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0) + size, radius=corner_radius, fill=255)
+            img.putalpha(mask)
+            
+            self.hint_image = ctk.CTkImage(light_image=img, dark_image=img, size=size)
+            
         except Exception as e:
             print(f"Image load error: {e}")
             self.hint_image = None
+            
         self.image_label = ctk.CTkLabel(self.frame, image=self.hint_image, text="")
-        self.image_label.pack(side="right", padx=10, pady=10)
+        self.image_label.pack(side="right", padx=15, pady=15)
+        
         self.withdraw()
         self.widget = widget
         self.widget.bind("<Enter>", self.show_hint)
         self.widget.bind("<Leave>", self.hide_hint)
         self.widget.bind("<Motion>", self.move_hint)
+        
+        self.update_theme() # Call on init to set initial colors
+
+    def update_theme(self):
+        mode = ctk.get_appearance_mode().lower()
+        fg_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        text_color = "white" if mode == "dark" else "black"
+        
+        if self.winfo_exists():
+            self.frame.configure(fg_color=fg_color)
+            self.hint_label.configure(text_color=text_color)
+        
     def show_hint(self, event=None):
         self.deiconify()
         self.lift()
@@ -404,6 +582,8 @@ class HoverHint(ctk.CTkToplevel):
             x = event.x_root + 10
             y = event.y_root + 10
             self.geometry(f"+{x}+{y}")
+
+
 class AnimatedCTkButton(ctk.CTkButton):
     def __init__(self, *args, hover_fg_color="#0050a0", **kwargs):
         super().__init__(*args, **kwargs)
@@ -639,6 +819,554 @@ class AlertPopup(ctk.CTkToplevel):
             self.after(50, lambda: self.fade_in(alpha + 0.1))
         else:
             self.attributes("-alpha", 1.0)
+
+
+
+# ----------------------- (NEW) IMPORT POPUP (PHASE 1) -----------------------
+# ----------------------- (NEW) IMPORT POPUP (PHASE 1) -----------------------
+class NewImportPopup(ctk.CTkToplevel):
+    """
+    Phase 1 Popup: Asks the user to select a local file or fetch a Google Sheet URL
+    by clicking, pasting, or dragging.
+    """
+    def __init__(self, master, on_success_callback, *args, **kwargs):
+        super().__init__(master, *args, **kwargs)
+        self.title("Import Contacts")
+        self.iconbitmap(TITLE_ICON_PATH)
+        self.geometry("600x320") # Long horizontally
+        self.resizable(False, False)
+        self.on_success_callback = on_success_callback
+        
+        self.wm_attributes("-topmost", True)
+        self.transient(master)
+
+        # --- Theme Colors ---
+        mode = ctk.get_appearance_mode().lower()
+        bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        fg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        
+        self.configure(fg_color=bg_color) 
+        
+        # --- Main Layout (2 columns) ---
+        self.grid_columnconfigure(0, weight=1) # Left controls
+        self.grid_columnconfigure(1, weight=1) # Right image
+        self.grid_rowconfigure(0, weight=1)
+        
+        # --- Left Frame (Controls) ---
+        left_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=15)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
+        
+        left_frame.grid_columnconfigure(0, weight=1)
+        left_frame.grid_rowconfigure(0, weight=0) # Title
+        left_frame.grid_rowconfigure(1, weight=1) # Drop box
+        
+        title_label = ctk.CTkLabel(left_frame, text="Import Contacts", font=("Arial", 24, "bold"))
+        title_label.grid(row=0, column=0, pady=(10, 10))
+
+        # --- (NEW) Load Theme-Aware Upload Icon ---
+        try:
+            img_light = Image.open(UPLOAD_ICON_LIGHT_PATH).resize((80, 80), Image.Resampling.LANCZOS)
+            img_dark = Image.open(UPLOAD_ICON_DARK_PATH).resize((80, 80), Image.Resampling.LANCZOS)
+            self.upload_icon = ctk.CTkImage(light_image=img_light, dark_image=img_dark, size=(80, 80))
+        except Exception as e:
+            print(f"Error loading upload icons: {e}")
+            self.upload_icon = None # Fallback
+
+        # "Drop Box" Button
+        self.drop_box_btn = ctk.CTkButton(
+            left_frame, 
+            text="Click to Select File\nOr Paste Google Sheet URL\nOr Drag & Drop File" if self.upload_icon else "+\n\nClick, Paste, or Drop File",
+            image=self.upload_icon,
+            compound="top", # Image above text
+            font=("Arial", 16), 
+            command=self.select_file,
+            corner_radius=10,
+            fg_color=inner_color,
+            text_color="gray",
+            border_width=2,
+            border_color="#555555",
+            hover_color="#333333" if mode == "dark" else "#E0E0E0",
+            height=180 # Taller box
+        )
+        self.drop_box_btn.grid(row=1, column=0, sticky="nsew", padx=20, pady=(10, 20))
+        
+        # --- (NEW) Drag & Drop Bindings ---
+        self.drop_box_btn.drop_target_register(tkinterdnd2.DND_FILES)
+        self.drop_box_btn.dnd_bind('<<Drop>>', self.handle_drop)
+
+        # --- Right Frame (Image) ---
+        right_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=15)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=20)
+        right_frame.grid_rowconfigure(0, weight=1)
+        right_frame.grid_columnconfigure(0, weight=1)
+        
+        try:
+            # Use the global round_corners function
+            hint_img = round_corners(os.path.join(BIN_FOLDER, "hint_import.png"), (200, 200), corner_radius=15)
+            if hint_img:
+                img_label = ctk.CTkLabel(right_frame, image=hint_img, text="")
+                img_label.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        except Exception as e:
+            print(f"Error loading hint_import.png: {e}")
+            ctk.CTkLabel(right_frame, text="Image Error", font=("Arial", 16)).grid(row=0, column=0)
+
+        center_window(self)
+        # Bind paste event to the whole window
+        self.bind("<Control-v>", self.handle_paste)
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def select_file(self):
+        """Opens file dialog and triggers callback with the file path."""
+        path = filedialog.askopenfilename(
+            filetypes=[("Excel Files", "*.xlsx;*.xls"), ("CSV Files", "*.csv")],
+            parent=self
+        )
+        if path:
+            self.on_success_callback(file_path=path)
+            self.destroy()
+
+    def handle_drop(self, event):
+        """Handles a file being dropped onto the button."""
+        try:
+            file_path = event.data
+            # DND data can be wrapped in braces {}
+            if file_path.startswith('{') and file_path.endswith('}'):
+                file_path = file_path[1:-1]
+            
+            # Check for valid file types
+            if file_path.endswith(('.xlsx', '.xls', '.csv')):
+                self.on_success_callback(file_path=file_path)
+                self.destroy()
+            else:
+                messagebox.showerror("Error", "Invalid file type. Please drop an .xlsx, .xls, or .csv file.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Drop Error", f"An error occurred: {e}", parent=self)
+
+    def handle_paste(self, event=None):
+        """Handles the Ctrl+V paste event."""
+        try:
+            url = self.clipboard_get()
+            if not url or not (url.startswith("http://") or url.startswith("https://")):
+                messagebox.showinfo("Paste Error", "Clipboard does not contain a valid URL.", parent=self)
+                return
+            
+            if "docs.google.com/spreadsheets" not in url:
+                messagebox.showwarning("Paste Warning", "This doesn't look like a Google Sheet URL, but we'll try to fetch it anyway.", parent=self)
+            
+            self._start_fetch(url)
+            
+        except tk.TclError:
+            messagebox.showinfo("Paste Error", "Could not read from clipboard.", parent=self)
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred during paste: {e}", parent=self)
+
+
+    def _start_fetch(self, url):
+        """Starts the URL fetching process in a separate thread."""
+        if not url:
+            messagebox.showerror("Error", "No URL provided.", parent=self)
+            return
+            
+        self.drop_box_btn.configure(text="Fetching URL...", state="disabled", image=None)
+        threading.Thread(target=self._download_csv, args=(url,), daemon=True).start()
+
+    def _download_csv(self, url):
+        """WORKER THREAD: Parses GSheet URL and downloads the CSV data."""
+        try:
+            # Regex to find Sheet ID and GID
+            match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)(?:/.*gid=(\d+))?', url)
+            
+            if not match:
+                self.after(0, self.on_fetch_error, "Invalid Google Sheet URL. URL must contain '/spreadsheets/d/...'")
+                return
+
+            sheet_id = match.group(1)
+            gid = match.group(2) or "0" # Default to first sheet (gid=0)
+            csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"            
+            
+            response = requests.get(csv_url, timeout=15)
+            response.raise_for_status() # Raise error for bad responses (404, 500, etc)
+            
+            data = response.text
+            self.after(0, self.on_fetch_success, data)
+            
+        except requests.exceptions.Timeout:
+            self.after(0, self.on_fetch_error, "Request timed out. Check your internet connection.")
+        except requests.exceptions.RequestException as e:
+            self.after(0, self.on_fetch_error, f"Failed to fetch URL: {e}")
+        except Exception as e:
+            self.after(0, self.on_fetch_error, f"An unexpected error occurred: {e}")
+
+    def on_fetch_success(self, data):
+        """Callback on successful URL fetch. Triggers main callback with CSV data."""
+        self.on_success_callback(csv_data=data)
+        self.destroy()
+
+    def on_fetch_error(self, msg):
+        """Callback on failed URL fetch. Shows error and re-enables UI."""
+        messagebox.showerror("Error", msg, parent=self)
+        self.drop_box_btn.configure(
+            text="Click to Select File\nOr Paste Google Sheet URL\nOr Drag & Drop File", 
+            state="normal", 
+            image=self.upload_icon
+        )
+# ----------------------- (NEW) MAPPING POPUP (PHASE 2) -----------------------
+class MappingPopup(ctk.CTkToplevel):
+    """
+    Phase 2 Popup: Shows data preview and asks user to map columns and row ranges.
+    This is the heavily refactored old ImportDatabasePopup.
+    """
+    def __init__(self, master, on_import_callback, merge_mode, file_path=None, csv_data=None, *args, **kwargs):
+        super().__init__(master, *args, **kwargs)
+        self.title("Map Columns and Rows")
+        self.iconbitmap(TITLE_ICON_PATH)
+        self.geometry("1000x400") # Wider window
+        self.minsize(800, 500)   # Set a minimum size
+        self.resizable(True, True) # Allow resizing
+        self.on_import_callback = on_import_callback
+        self.merge_mode = merge_mode
+        self.file_path = file_path
+        self.csv_data = csv_data # Store in-memory CSV data
+        self.is_csv = (csv_data is not None) or (file_path and file_path.endswith('.csv'))
+        
+        self.wm_attributes("-topmost", True)
+        self.transient(master)
+
+        # --- Theme Colors ---
+        mode = ctk.get_appearance_mode().lower()
+        bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        fg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        self.inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        
+        self.configure(fg_color=bg_color) 
+        
+        # --- Main Layout (2 columns) ---
+        self.grid_columnconfigure(0, weight=1) # Left controls
+        self.grid_columnconfigure(1, weight=2) # Right preview (wider)
+        self.grid_rowconfigure(0, weight=1)
+        
+        # --- Left Frame (Controls) ---
+        left_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=fg_color)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
+        
+        left_frame.grid_columnconfigure(0, weight=1)
+        left_frame.grid_rowconfigure(1, weight=0) # Field Frame
+        left_frame.grid_rowconfigure(5, weight=0) # Adv Button
+        left_frame.grid_rowconfigure(6, weight=0) # Adv Frame
+        left_frame.grid_rowconfigure(7, weight=1) # Spacer
+        left_frame.grid_rowconfigure(8, weight=0) # Import Button
+        
+        title_label = ctk.CTkLabel(left_frame, text="Map Data Columns", font=("Arial", 24, "bold"))
+        title_label.grid(row=0, column=0, columnspan=2, pady=(10, 20), padx=20)
+
+        # --- Column Mapping ---
+        label_font = ("Arial", 16, "bold")
+        entry_font = ("Arial", 16)
+        entry_height = 40
+        
+        field_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        field_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=20)
+        field_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(field_frame, text="Phone Column:", font=label_font, text_color="green").grid(row=0, column=0, sticky="e", padx=(10,5), pady=10)
+        self.phone_col_var = ctk.StringVar()
+        self.phone_col_entry = ctk.CTkEntry(
+            field_frame, textvariable=self.phone_col_var, 
+            font=entry_font, height=entry_height, 
+            fg_color=self.inner_color, border_width=2, border_color="green", corner_radius=10,
+            placeholder_text="e.g., A or Phone"
+        )
+        self.phone_col_entry.grid(row=0, column=1, sticky="ew", padx=(5,10), pady=10)
+        
+        ctk.CTkLabel(field_frame, text="Name Column:", font=label_font, text_color="green").grid(row=1, column=0, sticky="e", padx=(10,5), pady=10)
+        self.name_col_var = ctk.StringVar()
+        self.name_col_entry = ctk.CTkEntry(
+            field_frame, textvariable=self.name_col_var, 
+            font=entry_font, height=entry_height, 
+            fg_color=self.inner_color, border_width=2, border_color="green", corner_radius=10,
+            placeholder_text="e.g., B or Name (Optional)"
+        )
+        self.name_col_entry.grid(row=1, column=1, sticky="ew", padx=(5,10), pady=10)
+
+        ctk.CTkLabel(field_frame, text="Custom 1 Col:", font=label_font).grid(row=2, column=0, sticky="e", padx=(10,5), pady=10)
+        self.custom1_col_var = ctk.StringVar()
+        self.custom1_col_entry = ctk.CTkEntry(
+            field_frame, textvariable=self.custom1_col_var, 
+            font=entry_font, height=entry_height, 
+            fg_color=self.inner_color, border_width=0, corner_radius=10,
+            placeholder_text="e.g., C or Custom1 (Optional)"
+        )
+        self.custom1_col_entry.grid(row=2, column=1, sticky="ew", padx=(5,10), pady=10)
+
+        ctk.CTkLabel(field_frame, text="Custom 2 Col:", font=label_font).grid(row=3, column=0, sticky="e", padx=(10,5), pady=10)
+        self.custom2_col_var = ctk.StringVar()
+        self.custom2_col_entry = ctk.CTkEntry(
+            field_frame, textvariable=self.custom2_col_var, 
+            font=entry_font, height=entry_height, 
+            fg_color=self.inner_color, border_width=0, corner_radius=10,
+            placeholder_text="e.g., D or Custom2 (Optional)"
+        )
+        self.custom2_col_entry.grid(row=3, column=1, sticky="ew", padx=(5,10), pady=10)
+        
+        # --- Advanced Options ---
+        self.advanced_visible = False
+        self.toggle_advanced_btn = ctk.CTkButton(
+            left_frame, 
+            text="Advanced Options ▾", 
+            command=self.toggle_advanced,
+            fg_color="transparent",
+            hover_color=self.inner_color,
+            text_color="gray"
+        )
+        self.toggle_advanced_btn.grid(row=5, column=0, columnspan=2, sticky="w", padx=20, pady=(10, 0))
+        
+        self.advanced_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        self.advanced_frame.grid_columnconfigure(1, weight=1)
+        
+        ctk.CTkLabel(self.advanced_frame, text="Row Range:", font=label_font).grid(row=0, column=0, sticky="e", padx=(10,5), pady=10)
+        self.row_range_var = ctk.StringVar()
+        self.row_range_entry = ctk.CTkEntry(
+            self.advanced_frame, textvariable=self.row_range_var, 
+            font=entry_font, height=entry_height, 
+            fg_color=self.inner_color, border_width=0, corner_radius=10,
+            placeholder_text="e.g., 2-10, 15, 21-30 (Optional)"
+        )
+        self.row_range_entry.grid(row=0, column=1, sticky="ew", padx=(5,10), pady=10)
+        
+        # Spacer
+        left_frame.grid_rowconfigure(7, weight=1) 
+        ctk.CTkFrame(left_frame, fg_color="transparent").grid(row=7, column=0, sticky="nsew")
+
+        # --- Import/Cancel Buttons ---
+        button_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        button_frame.grid(row=8, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 10))
+        button_frame.grid_columnconfigure((0,1), weight=1)
+        
+        self.cancel_btn = ctk.CTkButton(
+            button_frame,
+            text="Cancel",
+            command=self.destroy,
+            height=45,
+            font=("Arial", 18, "bold"),
+            fg_color="#555555",
+            hover_color="#777777"
+        )
+        self.cancel_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+        
+        self.import_btn = ctk.CTkButton(
+            button_frame, 
+            text="Import Data", 
+            command=self.on_import, 
+            height=45,
+            font=("Arial", 18, "bold"),
+            fg_color="green",
+            hover_color="#45A049"
+        )
+        self.import_btn.grid(row=0, column=1, sticky="ew", padx=(5, 0))
+
+        # --- Right Frame (Preview) ---
+        right_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=fg_color)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=20)
+        right_frame.grid_rowconfigure(1, weight=1)
+        right_frame.grid_columnconfigure(0, weight=1)
+        
+        ctk.CTkLabel(right_frame, text="Data Preview (First 200 Rows)", font=("Arial", 18, "bold")).grid(row=0, column=0, pady=(10, 10))
+        
+        # --- (CORRECT) ---
+        # Create a scrollable frame to hold the grid
+        self.preview_grid_frame = ctk.CTkScrollableFrame(
+            right_frame, 
+            fg_color=self.inner_color, 
+            border_width=1,
+            border_color="#555555"
+        )
+        self.preview_grid_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        # --- (END CORRECT) ---
+        
+        # --- Finalize ---
+        self.load_preview_and_detect_headers() # Load data
+        
+        center_window(self)
+        self.bind("<Return>", lambda e: self.on_import())
+        self.bind("<Escape>", lambda e: self.destroy())
+
+    def toggle_advanced(self):
+        """Shows or hides the advanced options frame for row ranges."""
+        if self.advanced_visible:
+            self.advanced_frame.grid_remove()
+            self.toggle_advanced_btn.configure(text="Advanced Options ▾")
+            self.advanced_visible = False
+        else:
+            # Grid it right below the toggle button
+            self.advanced_frame.grid(row=6, column=0, columnspan=2, sticky="ew", padx=20)
+            self.toggle_advanced_btn.configure(text="Advanced Options ▴")
+            self.advanced_visible = True
+
+    def load_preview_and_detect_headers(self):
+        """Loads the first 200 rows into a grid preview and auto-detects headers."""
+        header = []
+        preview_lines = []
+        
+        try:
+            # --- (Data loading logic is unchanged) ---
+            if self.csv_data:
+                f = StringIO(self.csv_data)
+                try:
+                    dialect = csv.Sniffer().sniff(f.read(2048))
+                except csv.Error:
+                    f.seek(0); dialect = 'excel'
+                f.seek(0)
+                reader = csv.reader(f, dialect)
+                header = next(reader)
+                preview_lines.append(header)
+                for i, row in enumerate(reader):
+                    if i >= 199: break
+                    preview_lines.append(row)
+                    
+            elif self.file_path.endswith('.csv'):
+                with open(self.file_path, newline='', encoding='utf-8-sig') as csvfile:
+                    try:
+                        dialect = csv.Sniffer().sniff(csvfile.read(2048))
+                    except csv.Error:
+                        csvfile.seek(0); dialect = 'excel'
+                    csvfile.seek(0)
+                    reader = csv.reader(csvfile, dialect)
+                    header = next(reader)
+                    preview_lines.append(header)
+                    for i, row in enumerate(reader):
+                        if i >= 199: break
+                        preview_lines.append(row)
+                        
+            elif self.file_path.endswith(('.xlsx', '.xls')):
+                wb = openpyxl.load_workbook(self.file_path, read_only=True, data_only=True)
+                sheet = wb.active
+                header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), [])
+                header = [str(cell) if cell is not None else "" for cell in header_row]
+                preview_lines.append(header)
+                for i, row in enumerate(sheet.iter_rows(min_row=2, max_row=201, values_only=True)):
+                    preview_lines.append([str(cell) if cell is not None else "" for cell in row])
+
+            # --- (NEW) Populate Preview Grid ---
+            if preview_lines:
+                mode = ctk.get_appearance_mode().lower()
+                border_color = "#444444" if mode == "dark" else "#CCCCCC"
+                header_font = ctk.CTkFont(family="Arial", size=14, weight="bold")
+                data_font = ctk.CTkFont(family="Arial", size=14)
+                
+                max_cols = max(len(row) for row in preview_lines)
+                
+                # --- 1. Column Letter Header (A, B, C...) ---
+                # Create a placeholder frame for the top-left corner
+                corner_frame = ctk.CTkFrame(self.preview_grid_frame, corner_radius=0, fg_color="transparent", border_width=1, border_color=border_color)
+                corner_frame.grid(row=0, column=0, sticky="nsew")
+                
+                for col_idx in range(max_cols):
+                    col_letter = chr(65 + col_idx)
+                    # Frame for the cell border
+                    cell_frame = ctk.CTkFrame(self.preview_grid_frame, corner_radius=0, fg_color="transparent", border_width=1, border_color=border_color)
+                    cell_frame.grid(row=0, column=col_idx + 1, sticky="nsew")
+                    # Label inside the frame
+                    cell_label = ctk.CTkLabel(cell_frame, text=col_letter, font=header_font, text_color="green", padx=10, pady=5)
+                    cell_label.pack(expand=True, fill="both")
+
+                # --- 2. Data Rows (with row numbers) ---
+                for row_idx, row in enumerate(preview_lines):
+                    grid_row = row_idx + 1 # Start from grid row 1
+                    
+                    # --- Row Number Cell ---
+                    row_num_str = str(row_idx + 1)
+                    row_num_frame = ctk.CTkFrame(self.preview_grid_frame, corner_radius=0, fg_color="transparent", border_width=1, border_color=border_color)
+                    row_num_frame.grid(row=grid_row, column=0, sticky="nsew")
+                    row_num_label = ctk.CTkLabel(row_num_frame, text=row_num_str, font=header_font, padx=10, pady=5)
+                    row_num_label.pack(expand=True, fill="both")
+                    
+                    # --- Data Cells ---
+                    for col_idx in range(max_cols):
+                        grid_col = col_idx + 1 # Start from grid col 1
+                        cell_data = str(row[col_idx]) if col_idx < len(row) else ""
+                        
+                        cell_frame = ctk.CTkFrame(self.preview_grid_frame, corner_radius=0, fg_color="transparent", border_width=1, border_color=border_color)
+                        cell_frame.grid(row=grid_row, column=grid_col, sticky="nsew")
+                        
+                        # Use bold font for the first data row (the file header)
+                        font_to_use = header_font if row_idx == 0 else data_font
+                        
+                        cell_label = ctk.CTkLabel(cell_frame, text=cell_data, font=font_to_use, padx=10, pady=5, anchor="w")
+                        cell_label.pack(expand=True, fill="both")
+                        
+                        # Configure column weight to make them expand
+                        self.preview_grid_frame.grid_columnconfigure(grid_col, weight=1)
+
+            # --- (Unchanged) Auto-detect Headers ---
+            placeholder_name = "Enter Column Name (e.g., Phone)"
+            placeholder_letter = "Enter Column Letter (e.g., A)"
+            
+            if self.is_csv:
+                self.phone_col_entry.configure(placeholder_text=placeholder_name)
+                self.name_col_entry.configure(placeholder_text="e.g., Name (Optional)")
+                self.custom1_col_entry.configure(placeholder_text="e.g., Custom1 (Optional)")
+                self.custom2_col_entry.configure(placeholder_text="e.g., Custom2 (Optional)")
+                
+                for col_name in header:
+                    if not col_name: continue
+                    col_lower = col_name.lower()
+                    if "phone" in col_lower or "mobile" in col_lower or "number" in col_lower:
+                        if self.phone_col_var.get() == "": self.phone_col_var.set(col_name)
+                    elif "name" in col_lower:
+                        if self.name_col_var.get() == "": self.name_col_var.set(col_name)
+                    elif "custom1" in col_lower or "var1" in col_lower:
+                        if self.custom1_col_var.get() == "": self.custom1_col_var.set(col_name)
+                    elif "custom2" in col_lower or "var2" in col_lower:
+                        if self.custom2_col_var.get() == "": self.custom2_col_var.set(col_name)
+            else:
+                self.phone_col_entry.configure(placeholder_text=placeholder_letter)
+                self.name_col_entry.configure(placeholder_text="e.g., B (Optional)")
+                self.custom1_col_entry.configure(placeholder_text="e.g., C (Optional)")
+                self.custom2_col_entry.configure(placeholder_text="e.g., D (Optional)")
+                
+                self.phone_col_var.set("A")
+                self.name_col_var.set("B")
+                
+                for i, col_name in enumerate(header):
+                    col_letter = chr(65 + i)
+                    col_lower = str(col_name).lower()
+                    if "phone" in col_lower or "mobile" in col_lower or "number" in col_lower:
+                        self.phone_col_var.set(col_letter)
+                    elif "name" in col_lower:
+                        self.name_col_var.set(col_letter)
+
+        except Exception as e:
+            messagebox.showerror("Preview Error", f"Failed to load data preview: {e}", parent=self)
+            # --- (CORRECTED) Log error to a simple label if grid fails ---
+            error_label = ctk.CTkLabel(self.preview_grid_frame, text=f"Error loading preview: {e}", text_color="red")
+            error_label.pack(padx=10, pady=10)
+
+    def on_import(self):
+        """Gathers all settings and passes them to the main app's callback."""
+        phone_col = self.phone_col_var.get().strip()
+        if not phone_col:
+            messagebox.showerror("Error", "Phone column is required.", parent=self)
+            return
+            
+        name_col = self.name_col_var.get().strip()
+        custom1_col = self.custom1_col_var.get().strip()
+        custom2_col = self.custom2_col_var.get().strip()
+        row_range_str = self.row_range_var.get().strip()
+        
+        # Call the main app's load function with all new parameters
+        self.on_import_callback(
+            file_path=self.file_path, 
+            phone_col=phone_col, 
+            name_col=name_col, 
+            custom1_col=custom1_col, 
+            custom2_col=custom2_col,
+            merge_mode=self.merge_mode,
+            row_range_str=row_range_str,
+            csv_data=self.csv_data # Pass the in-memory data
+        )
+        self.destroy()
+# ----------------------- FIRST RUN POPUP -----------------------
 class FirstRunPopup(ctk.CTkToplevel):
     def __init__(self, master, on_close_callback, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
@@ -697,79 +1425,156 @@ class FirstRunPopup(ctk.CTkToplevel):
             # Fallback label
             fallback_label = ctk.CTkLabel(self.container, text="Image Missing", text_color="#FFFFFF")
             fallback_label.place(relx=0.85, rely=0.5, anchor="center")
+            
     def clear_placeholder(self, event):
         if self.product_key_entry.get() == "Sample Product Key":
             self.product_key_entry.delete(0, "end")
+            
     def animate_image_zoom_in(self, event):
         if hasattr(self, 'product_image_label') and self.product_img:
-            # Recreate slightly larger image for zoom
             zoomed_img = round_corners(PRODUCT_IMAGE_PATH, (240, 240), corner_radius=15)
             if zoomed_img:
                 self.after(50, lambda: self.product_image_label.configure(image=zoomed_img))
+                
     def animate_image_zoom_out(self, event):
         if hasattr(self, 'product_image_label') and self.product_img:
             self.after(50, lambda: self.product_image_label.configure(image=self.product_img))
+            
     def fade_in(self, alpha=0.0):
         if alpha < 1.0:
             self.attributes("-alpha", alpha)
             self.after(50, lambda: self.fade_in(alpha + 0.1))
         else:
             self.attributes("-alpha", 1.0)
+            
     def terminate(self):
         if not self.validated:  # If not validated, terminate the entire app
-            self.master.quit()  # Stop the mainloop
-            sys.exit(0)  # Fully terminate the script
-        self.destroy()  # Otherwise, just close the popup
+            self.master.quit()
+            sys.exit(0)
+        self.destroy()
+        
     def get_product_key(self):
         message = "Hi! I would like to purchase WabulkXpress. What's the cost and how do I get a product key? 😊💸🚀"
         encoded = message.replace(" ", "%20")
         webbrowser.open(f"https://wa.me/{WHATSAPP_NUMBER}?text={encoded}")
+
+    def write_license_file(self, key, expiry_date_str):
+        """Helper function to write the license.dat file."""
+        try:
+            license_data = {"key": key, "expiry_date": expiry_date_str}
+            with open(LICENSE_FILE, 'w') as f:
+                json.dump(license_data, f, indent=2)
+            logger.info(f"Successfully wrote license file. Key: {key}, Expiry: {expiry_date_str}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to write local license file: {e}")
+            AlertPopup(self, f"Error saving license: {e}")
+            return False
+
     def validate_product_key(self, key):
-        # Basic format check (fail fast)
+        """Validates key against the new GAS logic."""
         if not key or not re.match(r'^[A-Z0-9]{4}-[A-Z0-9]{4}$', key):
             AlertPopup(self, "The product key is invalid.")
             return False
         
-        # Encode key for URL
         encoded_key = urllib.parse.quote(key, safe='')
         
         try:
-            # Use the correct SCRIPT_ID
-            SCRIPT_ID = "AKfycby80FXj-xqDbxEpVcQue77HI0LwIHSiHdjM4bjTs_66_r7zRrnPlLwGZVQBZQTjmZWNVA"
+            SCRIPT_ID = "AKfycbwIpHESNGTffSxJ3Oe95VHYNtBvqdaApqJNYfeUQ4ecTrwGuLstpVj0r0rDayujH3xCOw"
             url = f"https://script.google.com/macros/s/{SCRIPT_ID}/exec?key={encoded_key}"
-            logger.info(f"Validating key '{key}' at URL: {url}")  # Debug log
+            logger.info(f"Validating key '{key}' at URL: {url}")
             
-            response = requests.get(url, timeout=30)  # Increased timeout for GAS cold starts
+            response = requests.get(url, timeout=30)
             response.raise_for_status()
-            logger.info(f"Response status: {response.status_code}, content-type: {response.headers.get('content-type')}")  # Debug
-            
             data = response.json()
             status = data.get("status")
-            used = data.get("used", 1)
-            message = data.get("message", "")  # From remade code
             
-            logger.info(f"API response: {data}")  # Full debug
+            logger.info(f"API response: {data}")
             
+            # --- *** NEW VALIDATION LOGIC *** ---
             if status == "valid":
+                used = data.get("used", 1) 
+                
                 if used == 0:
-                    # Mark as used
+                    # --- Scenario A: First-time activation ---
+                    validity_months = data.get("validity_months")
+                    if not validity_months:
+                        logger.error("Server Error: 'validity_months' missing.")
+                        AlertPopup(self, "Server Error: Key is valid but validity period is missing. Contact support.")
+                        return False
+                    
+                    try:
+                        # Calculate expiry date
+                        days_valid = int(float(validity_months) * 30.44) # Avg days in a month
+                        today = datetime.now().date()
+                        expiry_date = today + timedelta(days=days_valid)
+                        expiry_date_str = expiry_date.strftime("%Y-%m-%d")
+                        
+                        # Write to local license file FIRST
+                        if not self.write_license_file(key, expiry_date_str):
+                            return False # Stop if writing fails
+                        
+                    except Exception as e:
+                        logger.error(f"Failed to calculate expiry or write file: {e}")
+                        AlertPopup(self, f"Error saving license: {e}")
+                        return False
+
+                    # Now, mark the key as used in the Google Sheet
                     use_url = f"{url}&action=use"
                     use_response = requests.get(use_url, timeout=30)
-                    use_response.raise_for_status()
                     use_data = use_response.json()
+                    
                     if use_data.get("status") == "success":
-                        logger.info(f"Key '{key}' marked as used.")
-                        return True
+                        logger.info(f"Key '{key}' successfully activated and marked as used.")
+                        return True # SUCCESS!
                     else:
-                        logger.warning(f"Failed to mark key '{key}' as used: {use_data}")
-                        AlertPopup(self, f"Server error: {use_data.get('message', 'try later.')}")
+                        logger.warning(f"Failed to mark key as used: {use_data}")
+                        AlertPopup(self, f"Server error: {use_data.get('message', 'Could not mark key as used.')}")
+                        # If marking as used fails, remove the local file
+                        try: os.remove(LICENSE_FILE)
+                        except: pass
                         return False
-                else:
-                    AlertPopup(self, "This key has already been used.", is_used=True, key=key)
-                    return False
-            else:
-                AlertPopup(self, f"The product key is invalid: {message}")
+
+                elif used == 1:
+                    # --- Scenario B: Key already active, re-syncing ---
+                    expiry_date_str = data.get("expiry_date")
+                    if not expiry_date_str:
+                        logger.error("Server Error: 'expiry_date' missing for active key.")
+                        AlertPopup(self, "Server Error: Key is active but expiry date is missing. Contact support.")
+                        return False
+                        
+                    try:
+                        expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+                    except ValueError:
+                         logger.error(f"Invalid expiry_date format: {expiry_date_str}")
+                         AlertPopup(self, "Server Error: Invalid date format. Contact support.")
+                         return False
+
+                    today = datetime.now().date()
+                    
+                    if today > expiry_date:
+                        # This should be caught by status="expired", but good to double-check
+                        AlertPopup(self, f"This key is valid, but expired on {expiry_date_str}.", is_used=True, key=key)
+                        return False
+                    
+                    # Re-write/sync local license file
+                    if self.write_license_file(key, expiry_date_str):
+                        logger.info(f"Re-synced local license for key '{key}'.")
+                        return True # SUCCESS!
+                    else:
+                        return False # Writing file failed
+
+            elif status == "expired":
+                message = data.get("message", "This product key has expired.")
+                AlertPopup(self, message, is_used=True, key=key)
                 return False
+            
+            else: # status == "invalid" or any other
+                message = data.get("message", "The product key is invalid.")
+                AlertPopup(self, f"Invalid Key: {message}")
+                return False
+            # --- *** END NEW LOGIC *** ---
+            
         except requests.exceptions.Timeout:
             logger.error("Validation request timed out.")
             AlertPopup(self, "Request timed out. Check internet or try again.")
@@ -778,31 +1583,32 @@ class FirstRunPopup(ctk.CTkToplevel):
             logger.error(f"Network/HTTP error: {e}")
             AlertPopup(self, "Check connection and try again.")
             return False
-        except ValueError as e:  # JSON decode error
+        except json.JSONDecodeError:
             error_snippet = response.text[:200] if 'response' in locals() else "No response"
-            logger.error(f"Invalid JSON: {e}. Snippet: {error_snippet}")
+            logger.error(f"Invalid JSON. Snippet: {error_snippet}")
             AlertPopup(self, "Server returned invalid data. Contact support.")
             return False
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            AlertPopup(self, "Server error, try later.")
+            logger.error(f"Unexpected error: {e}", exc_info=True)
+            AlertPopup(self, f"An unexpected error occurred: {e}")
             return False
+            
     def register_product_key(self):
         key = self.product_key_entry.get().strip()
         if not key or key == "Sample Product Key":
             AlertPopup(self, "Please enter a valid product key.")
             return
         
-        # Disable button during processing to prevent multiple clicks
         self.register_button.configure(state="disabled")
         
         if self.validate_product_key(key):
-            self.validated = True  # Set the flag on successful validation
-            self.create_first_run_flag()  # Create the first run flag immediately when video starts
+            self.validated = True
+            # The license file is now created inside validate_product_key()
+            # self.create_first_run_flag()  # <-- REMOVED
             self.show_introduction_video()
         
-        # Re-enable button (in case of failure)
         self.register_button.configure(state="normal")
+        
     def show_introduction_video(self):
         video_window = ctk.CTkToplevel(self)
         video_window.title("Welcome!")
@@ -815,14 +1621,14 @@ class FirstRunPopup(ctk.CTkToplevel):
         mode = ctk.get_appearance_mode().lower()
         bg_color = DARK_BG if mode == "dark" else LIGHT_BG
         
-        video_window.configure(fg_color=bg_color) # Theme
+        video_window.configure(fg_color=bg_color)
         video_window.protocol("WM_DELETE_WINDOW", video_window.destroy)
         video_window.bind("<Escape>", lambda e: video_window.destroy())
         center_window(video_window)
         
-        video_window.container = ctk.CTkFrame(video_window, width=700, height=400, fg_color="transparent") # Theme
+        video_window.container = ctk.CTkFrame(video_window, width=700, height=400, fg_color="transparent")
         video_window.container.pack(fill="both", expand=True)
-        # Ensure the video is placed in the right container
+        
         if os.path.exists(VIDEO_PATH):
             video_window.video_player = TkinterVideo(video_window.container, VIDEO_PATH, scaled=True, keep_aspect=True)
             video_window.video_player.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -830,35 +1636,34 @@ class FirstRunPopup(ctk.CTkToplevel):
         else:
             video_window.instruction_label = ctk.CTkLabel(video_window.container, text="Video file not found", font=("Arial", 16))
             video_window.instruction_label.place(relx=0.5, rely=0.5, anchor="center")
-        # Bottom frame for the checkbox and OK button
+            
         video_window.bottom_frame = ctk.CTkFrame(video_window.container, fg_color="transparent")
         video_window.bottom_frame.place(relx=0.5, rely=0.95, anchor="center")
-        # Add the checkbox and OK button
+        
         video_window.dont_show_var = ctk.BooleanVar(value=False)
         video_window.checkbox = ctk.CTkCheckBox(video_window.bottom_frame, text="Don't show this again", 
                                                 variable=video_window.dont_show_var, font=("Arial", 14, "bold"))
         video_window.checkbox.pack(side="left", padx=20, pady=10)
+        
         video_window.ok_button = ctk.CTkButton(video_window.bottom_frame, text="OK", fg_color="#29AE07", 
                                                 hover_color="#009e05", font=("Arial", 16, "bold"), width=100, height=50,
                                                 corner_radius=15, command=lambda: self.close_video_popup(video_window))
         video_window.ok_button.pack(side="left", padx=20, pady=10)
-        # Bind close event to handle checkbox
         video_window.protocol("WM_DELETE_WINDOW", lambda: self.close_video_popup(video_window))
+        
     def close_video_popup(self, video_window):
-        if hasattr(video_window, 'dont_show_var') and video_window.dont_show_var.get():
-            # Optionally handle "don't show again" - perhaps write to a separate flag or modify FLAG_FILE
-            pass
         if hasattr(video_window, 'video_player'):
             video_window.video_player.stop()
         self.on_video_complete(video_window)
+        
     def on_video_complete(self, video_window=None):
         if video_window:
             video_window.destroy()
         self.on_close_callback()
         self.destroy()
-    def create_first_run_flag(self):
-        with open(FLAG_FILE, 'w') as f:
-            f.write("activated")
+        
+    # --- create_first_run_flag() method is completely REMOVED ---
+
 class ExcelTable(ctk.CTkScrollableFrame):
     def __init__(self, master, main_app, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
@@ -873,7 +1678,8 @@ class ExcelTable(ctk.CTkScrollableFrame):
         
         self.rows = []
         self.custom_cols_active = [] # Tracks which custom columns are shown
-        
+        self.undo_stack = [[]] # Start with an empty list as the initial state
+        self.redo_stack = []
         self.header_frame = ctk.CTkFrame(self, corner_radius=10, fg_color="transparent")
         self.header_frame.pack(fill="x", padx=5, pady=3, ipady=5) # Added padding
         
@@ -948,6 +1754,9 @@ class ExcelTable(ctk.CTkScrollableFrame):
         phone_entry.pack(side="left", padx=5, fill="x", expand=True)
         phone_entry.bind("<Return>", lambda event, widget=phone_entry, var=phone_var: self.validate_phone(widget, var))
         phone_entry.bind("<KeyRelease>", self.check_add_row)
+        phone_entry.bind("<Control-v>", self.handle_paste)
+        phone_entry.bind("<Control-z>", self.undo) # <-- MODIFIED
+        phone_entry.bind("<Control-y>", self.redo) # <-- MODIFIED
         row_dict["phone"] = phone_entry
         row_dict["phone_var"] = phone_var
 
@@ -957,6 +1766,9 @@ class ExcelTable(ctk.CTkScrollableFrame):
         name_entry.pack(side="left", padx=5, fill="x", expand=True)
         name_entry.bind("<Return>", lambda event, var=name_var: self.validate_name(var))
         name_entry.bind("<KeyRelease>", self.check_add_row)
+        name_entry.bind("<Control-v>", self.handle_paste)
+        name_entry.bind("<Control-z>", self.undo) # <-- MODIFIED
+        name_entry.bind("<Control-y>", self.redo) # <-- MODIFIED
         row_dict["name"] = name_entry
         row_dict["name_var"] = name_var
 
@@ -966,6 +1778,9 @@ class ExcelTable(ctk.CTkScrollableFrame):
             custom1_entry = ctk.CTkEntry(row_frame, textvariable=custom1_var, placeholder_text="Custom 1", corner_radius=10, fg_color=cell_color, border_width=0)
             custom1_entry.pack(side="left", padx=5, fill="x", expand=True)
             custom1_entry.bind("<KeyRelease>", self.check_add_row)
+            custom1_entry.bind("<Control-v>", self.handle_paste)
+            custom1_entry.bind("<Control-z>", self.undo) # <-- MODIFIED
+            custom1_entry.bind("<Control-y>", self.redo) # <-- MODIFIED
             row_dict["custom1"] = custom1_entry
             row_dict["custom1_var"] = custom1_var
             
@@ -975,6 +1790,9 @@ class ExcelTable(ctk.CTkScrollableFrame):
             custom2_entry = ctk.CTkEntry(row_frame, textvariable=custom2_var, placeholder_text="Custom 2", corner_radius=10, fg_color=cell_color, border_width=0)
             custom2_entry.pack(side="left", padx=5, fill="x", expand=True)
             custom2_entry.bind("<KeyRelease>", self.check_add_row)
+            custom2_entry.bind("<Control-v>", self.handle_paste)
+            custom2_entry.bind("<Control-z>", self.undo) # <-- MODIFIED
+            custom2_entry.bind("<Control-y>", self.redo) # <-- MODIFIED
             row_dict["custom2"] = custom2_entry
             row_dict["custom2_var"] = custom2_var
 
@@ -988,12 +1806,13 @@ class ExcelTable(ctk.CTkScrollableFrame):
         
         indicator.bind("<Button-1>", lambda e, r=row_dict: self.toggle_indicator(r))
         self.rows.append(row_dict)
-
     def update_row_numbers(self):
         for idx, row in enumerate(self.rows, start=1):
             row["sno"].configure(text=str(idx))
 
     def toggle_indicator(self, row_dict):
+        self.save_state_for_undo() # Save state before the toggle/delete
+        
         state = row_dict.get("indicator_state", 0)
         indicator = row_dict.get("indicator")
         if state == 0:
@@ -1067,7 +1886,96 @@ class ExcelTable(ctk.CTkScrollableFrame):
         if is_filled:
             self.add_row()
 
-    def load_data(self, data):
+    def handle_paste(self, event=None):
+        """Handles a Ctrl+V event to paste data from the clipboard."""
+        try:
+            # 1. Get data from clipboard
+            clipboard_data = self.clipboard_get()
+        except tk.TclError:
+            self.main_app.log_live("📋 Nothing to paste.")
+            return "break" # Stop default paste action
+
+        if not clipboard_data:
+            return "break" # Stop default paste action
+
+        new_data_entries = []
+        # 2. Split into rows
+        rows = clipboard_data.strip().split('\n')
+        
+        self.main_app.log_live(f"📋 Parsing {len(rows)} rows from clipboard...")
+
+        for row_str in rows:
+            if not row_str.strip():
+                continue # Skip empty lines
+                
+            # 3. Split each row by tabs (Excel format)
+            columns = row_str.split('\t')
+            entry = {}
+            
+            try:
+                # Map columns by position:
+                # Col 0 -> Phone
+                # Col 1 -> Name
+                # Col 2 -> Custom1
+                # Col 3 -> Custom2
+                entry["phone"] = columns[0].strip() if len(columns) > 0 else ""
+                entry["name"] = columns[1].strip() if len(columns) > 1 else ""
+                entry["custom1"] = columns[2].strip() if len(columns) > 2 else ""
+                entry["custom2"] = columns[3].strip() if len(columns) > 3 else ""
+            
+            except IndexError:
+                pass # Gracefully handle rows with fewer columns
+            
+            # Only add the entry if a phone number is present
+            if entry.get("phone"):
+                new_data_entries.append(entry)
+
+        if not new_data_entries:
+            self.main_app.log_live("📋 Paste complete. No valid new rows found.")
+            return "break" # Stop default paste
+
+        # 4. Get existing data from the table
+        current_data = self.get_data()
+        
+        # 5. Merge old and new data
+        combined_data = current_data + new_data_entries
+        
+        # 6. Reload the table with the combined data
+        self.load_data(combined_data)
+        
+        self.main_app.log_live(f"📋 Pasted and merged {len(new_data_entries)} new contacts.")
+
+        # 7. IMPORTANT: Stop the default paste action in the entry box
+        return "break"
+    
+    def save_state_for_undo(self):
+        """Saves the current data state for undo."""
+        current_data = self.get_data()
+        if not self.undo_stack or current_data != self.undo_stack[-1]:
+            self.undo_stack.append(current_data)
+            self.redo_stack.clear()
+
+    def undo(self, event=None):
+        """Loads the previous state from the undo stack."""
+        if len(self.undo_stack) > 1: # Can't undo the initial empty state
+            self.redo_stack.append(self.undo_stack.pop())
+            data_to_load = self.undo_stack[-1]
+            self._load_data_internal(data_to_load) # Use private loader
+        return "break" # Stop default widget undo
+
+    def redo(self, event=None):
+        """Loads the next state from the redo stack."""
+        if self.redo_stack:
+            data_to_load = self.redo_stack.pop()
+            self.undo_stack.append(data_to_load)
+            self._load_data_internal(data_to_load) # Use private loader
+        return "break" # Stop default widget undo
+    
+    def _load_data_internal(self, data):
+        """
+        Internal version of load_data that doesn't affect
+        the undo/redo stacks.
+        """
         # 1. Clear all existing widgets
         for child in self.winfo_children():
             if child != self.header_frame: # Keep header frame
@@ -1094,6 +2002,72 @@ class ExcelTable(ctk.CTkScrollableFrame):
         
         # 6. Update S.No.
         self.update_row_numbers()
+
+    def handle_paste(self, event=None):
+        """Handles a Ctrl+V event to paste data from the clipboard."""
+        try:
+            # 1. Get data from clipboard
+            clipboard_data = self.clipboard_get()
+        except tk.TclError:
+            self.main_app.log_live("📋 Nothing to paste.")
+            return "break" # Stop default paste action
+
+        if not clipboard_data:
+            return "break" # Stop default paste action
+
+        new_data_entries = []
+        # 2. Split into rows
+        rows = clipboard_data.strip().split('\n')
+        
+        self.main_app.log_live(f"📋 Parsing {len(rows)} rows from clipboard...")
+
+        for row_str in rows:
+            if not row_str.strip():
+                continue # Skip empty lines
+                
+            # 3. Split each row by tabs (Excel format)
+            columns = row_str.split('\t')
+            entry = {}
+            
+            try:
+                # Map columns by position:
+                # Col 0 -> Phone
+                # Col 1 -> Name
+                # Col 2 -> Custom1
+                # Col 3 -> Custom2
+                entry["phone"] = columns[0].strip() if len(columns) > 0 else ""
+                entry["name"] = columns[1].strip() if len(columns) > 1 else ""
+                entry["custom1"] = columns[2].strip() if len(columns) > 2 else ""
+                entry["custom2"] = columns[3].strip() if len(columns) > 3 else ""
+            
+            except IndexError:
+                pass # Gracefully handle rows with fewer columns
+            
+            # Only add the entry if a phone number is present
+            if entry.get("phone"):
+                new_data_entries.append(entry)
+
+        if not new_data_entries:
+            self.main_app.log_live("📋 Paste complete. No valid new rows found.")
+            return "break" # Stop default paste
+
+        # 4. Get existing data from the table
+        current_data = self.get_data()
+        
+        # 5. Merge old and new data
+        combined_data = current_data + new_data_entries
+        
+        # 6. Reload the table with the combined data
+        self.load_data(combined_data) # This will now save the undo state
+        
+        self.main_app.log_live(f"📋 Pasted and merged {len(new_data_entries)} new contacts.")
+
+        # 7. IMPORTANT: Stop the default paste action in the entry box
+        return "break"
+
+    def load_data(self, data):
+        self.save_state_for_undo() # Save the *previous* state
+        self._load_data_internal(data) # Load the new state
 
     def get_data(self):
         data = []
@@ -1125,135 +2099,12 @@ class ExcelTable(ctk.CTkScrollableFrame):
             data.append(entry)
         return data
 
-class ImportDatabasePopup(ctk.CTkToplevel):
-    def __init__(self, master, import_callback, merge_mode=False, *args, **kwargs):
-        super().__init__(master, *args, **kwargs)
-        
-        self.import_callback = import_callback
-        self.merge_mode = merge_mode # 'merge' or 'replace'
-        action_text = "Merge" if merge_mode else "Import"
-        
-        self.title(f"{action_text} Excel/CSV Data")
-        self.iconbitmap(TITLE_ICON_PATH)
-        self.geometry("600x300") # Made wider for new fields
-        self.resizable(False, False)
-        self.wm_attributes("-topmost", True)
-        self.transient(master)
-
-        mode = ctk.get_appearance_mode().lower()
-        bg_color = DARK_BG if mode == "dark" else LIGHT_BG
-        fg_color = DARK_FG if mode == "dark" else LIGHT_FG
-        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
-        
-        self.configure(fg_color=bg_color)
-        
-        title_label = ctk.CTkLabel(self, text=f"{action_text} Excel/CSV Data", font=("Arial", 18, "bold"))
-        title_label.pack(pady=10)
-        
-        frame = ctk.CTkFrame(self, corner_radius=10, fg_color=fg_color)
-        frame.pack(fill="x", padx=20, pady=5)
-        
-        # Configure grid
-        # Configure grid
-        frame.columnconfigure((0, 1), weight=1) # 2 columns
-        frame.rowconfigure((0, 1), weight=1)    # 2 rows
-
-        # --- Column Definitions ---
-        label_font = ("Arial", 14)
-        entry_font = ("Arial", 16)
-        
-        # Phone Column (Required)
-        phone_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        phone_frame.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
-        ctk.CTkLabel(phone_frame, text="Phone Column* (e.g., A)", font=label_font).pack(pady=2, anchor="w")
-        self.phone_col_var = ctk.StringVar()
-        self.phone_entry = ctk.CTkEntry(phone_frame, textvariable=self.phone_col_var, font=entry_font, corner_radius=10, fg_color=inner_color, border_width=0, placeholder_text="A")
-        self.phone_entry.pack(pady=2, fill="x")
-
-        # Name Column (Optional)
-        name_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        name_frame.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkLabel(name_frame, text="Name Column (e.g., B)", font=label_font).pack(pady=2, anchor="w")
-        self.name_col_var = ctk.StringVar()
-        self.name_entry = ctk.CTkEntry(name_frame, textvariable=self.name_col_var, font=entry_font, corner_radius=10, fg_color=inner_color, border_width=0, placeholder_text="B")
-        self.name_entry.pack(pady=2, fill="x")
-
-        # Custom 1 Column (Optional)
-        c1_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        c1_frame.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
-        ctk.CTkLabel(c1_frame, text="Custom 1 Col (Opt.)", font=label_font).pack(pady=2, anchor="w")
-        self.custom1_col_var = ctk.StringVar()
-        self.custom1_entry = ctk.CTkEntry(c1_frame, textvariable=self.custom1_col_var, font=entry_font, corner_radius=10, fg_color=inner_color, border_width=0, placeholder_text="C")
-        self.custom1_entry.pack(pady=2, fill="x")
-
-        # Custom 2 Column (Optional)
-        c2_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        c2_frame.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-        ctk.CTkLabel(c2_frame, text="Custom 2 Col (Opt.)", font=label_font).pack(pady=2, anchor="w")
-        self.custom2_col_var = ctk.StringVar()
-        self.custom2_entry = ctk.CTkEntry(c2_frame, textvariable=self.custom2_col_var, font=entry_font, corner_radius=10, fg_color=inner_color, border_width=0, placeholder_text="D")
-        self.custom2_entry.pack(pady=2, fill="x")
-        
-        # --- Browse Button ---
-        self.browse_btn = ctk.CTkButton(
-            self, 
-            text=f"{action_text} & Browse File", 
-            corner_radius=10, 
-            state="disabled", 
-            command=self.browse_file,
-            font=("Arial", 16, "bold"),
-            height=40,
-            width=250,  # <-- Set a fixed smaller width
-            fg_color="green",
-            hover_color="#45A049"
-        )
-        self.browse_btn.pack(pady=20, padx=20) # <-- Removed fill="x"
-        
-        center_window(self)
-        self.phone_entry.bind("<KeyRelease>", self.check_fields)
-        self.check_fields() # Initial check
-        
-        # --- New Enter Key Bindings ---
-        def browse_file_if_enabled(event=None):
-            # Only run if the button is not disabled
-            if self.browse_btn.cget("state") == "normal":
-                self.browse_file()
-
-        # Bind Enter key to all entry fields
-        self.phone_entry.bind("<Return>", browse_file_if_enabled)
-        self.name_entry.bind("<Return>", browse_file_if_enabled)
-        self.custom1_entry.bind("<Return>", browse_file_if_enabled)
-        self.custom2_entry.bind("<Return>", browse_file_if_enabled)
-        
-    def check_fields(self, event=None):
-        # Only require Phone column to be filled
-        if self.phone_col_var.get().strip():
-            self.browse_btn.configure(state="normal")
-        else:
-            self.browse_btn.configure(state="disabled")
-            
-    def browse_file(self):
-        path = filedialog.askopenfilename(filetypes=[("Excel/CSV Files", "*.xlsx *.csv *.xls")])
-        if path:
-            prog = ProgressPopup(self, "Loading Data", total=1)
-            # Pass all 4 column values + merge_mode flag
-            threading.Thread(target=lambda: self.import_callback(
-                path,
-                self.phone_col_var.get().upper(),
-                self.name_col_var.get().upper(),
-                self.custom1_col_var.get().upper(),
-                self.custom2_col_var.get().upper(),
-                self.merge_mode 
-            ), daemon=True).start()
-            self.after(2000, prog.close)
-            self.destroy()
-
 class CustomImageWindow(ctk.CTkToplevel):
     def __init__(self, master, excel_data, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         self.title("Custom Image Generator")
         self.iconbitmap(TITLE_ICON_PATH)
-        self.geometry("900x460")
+        self.geometry("1000x600") # <-- Bigger window
         self.resizable(False, False)
         self.wm_attributes("-topmost", True)
         self.excel_data = excel_data
@@ -1264,7 +2115,6 @@ class CustomImageWindow(ctk.CTkToplevel):
         inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
         
         self.configure(padx=10, pady=10, fg_color=bg_color) # Theme
-        center_window(self)
         self.template_image_path = None
         self.font_file_path = None
         self.last_click = (50, 50)
@@ -1272,167 +2122,322 @@ class CustomImageWindow(ctk.CTkToplevel):
         self.text_color_var = ctk.StringVar(value="black")
         self.ratio_options = ["Original", "4:3", "16:9", "5:8", "1:1", "3:2", "21:9"]
         self.ratio_var = ctk.StringVar(value="Original")
-        top_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=fg_color) # Theme
-        top_frame.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(top_frame, text="Select Image Ratio:").pack(side="left", padx=5)
-        self.ratio_menu = ctk.CTkOptionMenu(top_frame, values=self.ratio_options, variable=self.ratio_var, command=lambda x: self.update_preview())
-        self.ratio_menu.pack(side="left", padx=5)
-        self.control_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=fg_color) # Theme
-        self.control_frame.pack(side="left", fill="y", padx=10, pady=10)
-        self.preview_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=fg_color) # Theme
-        self.preview_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
-        ctk.CTkLabel(self.control_frame, text="Custom Image Generator", font=("Arial", 16, "bold")).pack(pady=10)
-        self.select_template_btn = ctk.CTkButton(self.control_frame, text="Select Template Image", corner_radius=10, command=self.select_template)
-        self.select_template_btn.pack(pady=5, fill="x", padx=10)
-        self.select_font_btn = ctk.CTkButton(self.control_frame, text="Select Font File", corner_radius=10, command=self.select_font)
-        self.select_font_btn.pack(pady=5, fill="x", padx=10)
-        ctk.CTkLabel(self.control_frame, text="Font Size:").pack(pady=5)
-        self.font_size_entry = ctk.CTkEntry(self.control_frame, textvariable=self.font_size_var, corner_radius=10, fg_color=inner_color, border_width=0) # Theme
-        self.font_size_entry.pack(pady=5, fill="x", padx=10)
+
+        # --- CONFIGURE TOP-LEVEL GRID ---
+        self.grid_rowconfigure(0, weight=0) # Row 0 for top_frame (no expand)
+        self.grid_rowconfigure(1, weight=1) # Row 1 for controls/preview (expand)
+        self.grid_columnconfigure(0, weight=1) # Col 0 for controls
+        self.grid_columnconfigure(1, weight=3) # Col 1 for preview
+
+        # --- Top Frame (Ratio) ---
+        top_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=fg_color)
+        # --- FIX: Use .grid() instead of .pack() ---
+        top_frame.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=10)
+        
+        ctk.CTkLabel(top_frame, text="Select Image Ratio:", font=("Arial", 16, "bold")).pack(side="left", padx=(10,5), pady=10)
+        self.ratio_menu = ctk.CTkOptionMenu(
+            top_frame, 
+            values=self.ratio_options, 
+            variable=self.ratio_var, 
+            command=lambda x: self.update_preview(),
+            height=40,
+            font=("Arial", 16),
+            dropdown_font=("Arial", 16),
+            fg_color="green",
+            button_color="#45A049",
+            button_hover_color="#3E8E41"
+        )
+        self.ratio_menu.pack(side="left", padx=5, pady=10) # .pack() is OK here, it's inside top_frame
+
+        # --- Main layout (already uses .grid()) ---
+        self.control_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=fg_color)
+        self.control_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0,10))
+        
+        self.preview_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=fg_color)
+        self.preview_frame.grid(row=1, column=1, sticky="nsew", padx=(0,10), pady=(0,10))
+        
+        # --- Control Frame Widgets (Using .grid()) ---
+        
+        # Configure grid inside control_frame
+        self.control_frame.grid_columnconfigure(0, weight=1) # Make column expandable
+        
+        ctk.CTkLabel(self.control_frame, text="Image Controls", font=("Arial", 22, "bold")).grid(
+            row=0, column=0, pady=20, padx=20
+        )
+        
+        # --- Button Styling ---
+        btn_font = ("Arial", 16, "bold")
+        btn_height = 45
+        btn_radius = 10
+        btn_fg = "green"
+        btn_hover = "#45A049"
+        
+        self.select_template_btn = ctk.CTkButton(
+            self.control_frame, text="Select Template Image", 
+            command=self.select_template,
+            font=btn_font, height=btn_height, corner_radius=btn_radius, fg_color=btn_fg, hover_color=btn_hover
+        )
+        self.select_template_btn.grid(row=1, column=0, pady=10, padx=20, sticky="ew")
+
+        self.select_font_btn = ctk.CTkButton(
+            self.control_frame, text="Select Font File (.ttf)", 
+            command=self.select_font,
+            font=btn_font, height=btn_height, corner_radius=btn_radius, fg_color=btn_fg, hover_color=btn_hover
+        )
+        self.select_font_btn.grid(row=2, column=0, pady=10, padx=20, sticky="ew")
+
+        ctk.CTkLabel(self.control_frame, text="Font Size:", font=btn_font).grid(
+            row=3, column=0, pady=(10, 5), padx=20, sticky="w"
+        )
+        self.font_size_entry = ctk.CTkEntry(
+            self.control_frame, textvariable=self.font_size_var, 
+            corner_radius=10, fg_color=inner_color, border_width=0,
+            height=40, font=("Arial", 16)
+        )
+        self.font_size_entry.grid(row=4, column=0, pady=5, padx=20, sticky="ew")
         self.font_size_entry.bind("<KeyRelease>", lambda e: self.update_preview())
         self.font_size_entry.bind("<Return>", lambda e: self.generate_images_with_progress())
-        ctk.CTkLabel(self.control_frame, text="Text Color:").pack(pady=5)
-        color_btn = ctk.CTkButton(self.control_frame, text="Choose Color", corner_radius=10, command=self.choose_color)
-        color_btn.pack(pady=5, fill="x", padx=10)
-        self.set_position_btn = ctk.CTkButton(self.control_frame, text="Set Text Position\n(Click Preview)", corner_radius=10, command=self.instruct_set_position)
-        self.set_position_btn.pack(pady=5, fill="x", padx=10)
+
+        ctk.CTkLabel(self.control_frame, text="Text Color:", font=btn_font).grid(
+            row=5, column=0, pady=(10, 5), padx=20, sticky="w"
+        )
+        color_btn = ctk.CTkButton(
+            self.control_frame, text="Choose Color", 
+            command=self.choose_color,
+            font=btn_font, height=btn_height, corner_radius=btn_radius, fg_color=btn_fg, hover_color=btn_hover
+        )
+        color_btn.grid(row=6, column=0, pady=5, padx=20, sticky="ew")
+
+        self.set_position_btn = ctk.CTkButton(
+            self.control_frame, text="Set Text Position\n(Click Preview Image)", 
+            command=self.instruct_set_position,
+            font=btn_font, height=50, corner_radius=btn_radius, fg_color=btn_fg, hover_color=btn_hover
+        )
+        self.set_position_btn.grid(row=7, column=0, pady=10, padx=20, sticky="ew")
+
+        # Add a spacer frame that will expand and push the button down
+        spacer_frame = ctk.CTkFrame(self.control_frame, fg_color="transparent")
+        spacer_frame.grid(row=8, column=0, sticky="nsew", pady=0)
+        self.control_frame.grid_rowconfigure(8, weight=1) # Configure the spacer's row to expand
+
         self.generate_btn = ctk.CTkButton(
             self.control_frame,
             text="Generate Images",
-            fg_color="green",       # Set to green
-            hover_color="#45A049",  # Add green hover color
-            corner_radius=10,
-            command=self.generate_images_with_progress
+            command=self.generate_images_with_progress,
+            font=("Arial", 18, "bold"), height=50, corner_radius=btn_radius,
+            fg_color="#006400", # Darker Green for emphasis
+            hover_color="#008000" # Brighter Green hover
         )
-        self.generate_btn.pack(pady=20, fill="x", padx=10)
-        self.canvas = ctk.CTkCanvas(self.preview_frame, bg=inner_color, width=800, height=800, highlightthickness=0, bd=0) # Theme
-        self.canvas.pack(fill="both", expand=True, padx=10, pady=10)
+        self.generate_btn.grid(row=9, column=0, pady=20, padx=20, sticky="ew")
+
+        # --- Preview Frame Widgets ---
+        self.preview_frame.grid_rowconfigure(0, weight=1)
+        self.preview_frame.grid_columnconfigure(0, weight=1)
+        
+        self.canvas = ctk.CTkCanvas(self.preview_frame, bg=inner_color, width=800, height=800, highlightthickness=0, bd=0)
+        self.canvas.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
         self.canvas.bind("<Button-1>", self.canvas_click)
+        
         # Bind Enter key to the whole window
         self.bind("<Return>", lambda e: self.generate_images_with_progress())
         self.preview_image = None
+        self.update_preview() # Initial call
+        center_window(self) # Center after everything is drawn
+
     def choose_color(self):
         color = colorchooser.askcolor(title="Choose text color", parent=self)
         if color and color[1]:
             self.text_color_var.set(color[1])
             self.update_preview()
+            
     def select_template(self):
         path = filedialog.askopenfilename(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")], parent=self)
         if path:
             self.template_image_path = path
             self.update_preview()
+            
     def select_font(self):
         path = filedialog.askopenfilename(filetypes=[("Font Files", "*.ttf")], parent=self)
         if path:
             self.font_file_path = path
+            self.update_preview() # Update preview when font changes
+            
     def canvas_click(self, event):
         self.last_click = (event.x, event.y)
         self.update_preview()
+        
     def instruct_set_position(self):
         messagebox.showinfo("Set Position", "Click on the preview image to set the text position.", parent=self)
+        
     def update_preview(self):
         if not self.template_image_path:
+            # --- NEW: Show placeholder text if no image ---
+            self.canvas.delete("all")
+            self.canvas.config(width=800, height=600) # Default size
+            self.canvas.create_text(
+                400, 300, 
+                text="Please select a template image...", 
+                font=("Arial", 24, "bold"), 
+                fill="gray"
+            )
             return
+            
         try:
+            # --- Get canvas size for scaling ---
+            self.preview_frame.update_idletasks()
+            canvas_width = self.canvas.winfo_width()
+            canvas_height = self.canvas.winfo_height()
+            
+            if canvas_width < 100 or canvas_height < 100: # Min size
+                canvas_width, canvas_height = 800, 600 # Fallback
+
             ratio = self.ratio_var.get()
-            if ratio == "4:3":
-                new_size = (800, 600)
-            elif ratio == "16:9":
-                new_size = (800, 450)
-            elif ratio == "5:8":
-                new_size = (800, 640)
-            elif ratio == "1:1":
-                new_size = (800, 800)
-            elif ratio == "3:2":
-                new_size = (800, int(800*2/3))
-            elif ratio == "21:9":
-                new_size = (800, int(800*9/21))
-            elif ratio == "Original":
-                img_temp = Image.open(self.template_image_path).convert("RGB")
+            img_temp = Image.open(self.template_image_path).convert("RGB")
+            
+            if ratio == "4:3": new_size = (canvas_width, int(canvas_width * 3/4))
+            elif ratio == "16:9": new_size = (canvas_width, int(canvas_width * 9/16))
+            elif ratio == "5:8": new_size = (canvas_width, int(canvas_width * 8/5))
+            elif ratio == "1:1": new_size = (canvas_width, canvas_width)
+            elif ratio == "3:2": new_size = (canvas_width, int(canvas_width * 2/3))
+            elif ratio == "21:9": new_size = (canvas_width, int(canvas_width * 9/21))
+            else: # Original
                 orig_size = img_temp.size
-                ratio_val = min(800/orig_size[0], 800/orig_size[1])
+                ratio_val = min(canvas_width/orig_size[0], canvas_height/orig_size[1])
                 new_size = (int(orig_size[0]*ratio_val), int(orig_size[1]*ratio_val))
-            img = Image.open(self.template_image_path).convert("RGB").resize(new_size, Image.Resampling.LANCZOS)
+
+            # Ensure image fits canvas
+            if new_size[1] > canvas_height:
+                new_size = (int(new_size[0] * (canvas_height / new_size[1])), canvas_height)
+                
+            img = img_temp.resize(new_size, Image.Resampling.LANCZOS)
+            
             draw = ImageDraw.Draw(img)
             font_size = int(self.font_size_var.get() or 50)
             font_path = self.font_file_path if self.font_file_path else "arial.ttf"
             font = ImageFont.truetype(font_path, font_size)
             draw.text(self.last_click, "{User_Name}", font=font, fill=self.text_color_var.get())
+            
             self.preview_image = ImageTk.PhotoImage(img)
-            self.canvas.config(width=new_size[0], height=new_size[1])
+            self.canvas.config(width=new_size[0], height=new_size[1]) # Resize canvas to image
             self.canvas.delete("all")
             self.canvas.create_image(0, 0, image=self.preview_image, anchor="nw")
+            
         except Exception as e:
             messagebox.showerror("Preview Error", f"Error updating preview: {e}", parent=self)
+            
     def generate_images_with_progress(self):
         total = len(self.excel_data)
+        if total == 0:
+            messagebox.showerror("Error", "No Excel data found. Please load contacts first.", parent=self)
+            return
+        if not self.template_image_path:
+            messagebox.showerror("Error", "No template image selected.", parent=self)
+            return
+            
         prog = ProgressPopup(self, "Generating Images", total)
         prog.geometry(
             f"500x300+{self.winfo_rootx() + (self.winfo_width()-500)//2}"
             f"+{self.winfo_rooty() + (self.winfo_height()-300)//2}"
         )
         self.after(100, lambda: threading.Thread(target=self.generate_images, args=(prog,), daemon=True).start())
+        
     def generate_images(self, prog):
-        if not self.template_image_path:
-            messagebox.showerror("Error", "No template image selected.", parent=self)
-            return
         try:
             font_size = int(self.font_size_var.get())
         except ValueError:
-            messagebox.showerror("Error", "Invalid font size.", parent=self)
+            # --- FIX: Schedule UI calls on main thread ---
+            self.after(0, lambda: messagebox.showerror("Error", "Invalid font size.", parent=self))
+            self.after(0, prog.close)
             return
+            
         font_path = self.font_file_path if self.font_file_path else "arial.ttf"
         text_color = self.text_color_var.get()
         text_pos = self.last_click
         ratio = self.ratio_var.get()
-        if ratio == "4:3":
-            new_size = (800, 600)
-        elif ratio == "16:9":
-            new_size = (800, 450)
-        elif ratio == "5:8":
-            new_size = (800, 640)
-        elif ratio == "1:1":
-            new_size = (800, 800)
-        elif ratio == "3:2":
-            new_size = (800, int(800*2/3))
-        elif ratio == "21:9":
-            new_size = (800, int(800*9/21))
-        elif ratio == "Original":
-            img_temp = Image.open(self.template_image_path).convert("RGB")
-            orig_size = img_temp.size
-            ratio_val = min(800/orig_size[0], 800/orig_size[1])
-            new_size = (int(orig_size[0]*ratio_val), int(orig_size[1]*ratio_val))
+        
+        # --- FIX: Store preview size to scale click position ---
+        # We need to get this from the main thread *before* starting.
+        # Let's pass the preview size to the thread.
+        preview_width = self.canvas.winfo_width()
+        preview_height = self.canvas.winfo_height()
+        if preview_width < 100: preview_width = 800 # Fallback
+        if preview_height < 100: preview_height = 600 # Fallback
+        
+        # Calculate click as a ratio (0.0 to 1.0)
+        click_ratio_x = self.last_click[0] / preview_width
+        click_ratio_y = self.last_click[1] / preview_height
+
+        # --- Use a fixed high-res size for generation ---
+        base_width = 1200 
+        img_temp_orig = Image.open(self.template_image_path).convert("RGB")
+        orig_size = img_temp_orig.size
+        
+        if ratio == "4:3": new_size = (base_width, int(base_width * 3/4))
+        elif ratio == "16:9": new_size = (base_width, int(base_width * 9/16))
+        elif ratio == "5:8": new_size = (base_width, int(base_width * 8/5))
+        elif ratio == "1:1": new_size = (base_width, base_width)
+        elif ratio == "3:2": new_size = (base_width, int(base_width * 2/3))
+        elif ratio == "21:9": new_size = (base_width, int(base_width * 9/21))
+        else: # Original
+            new_size = (orig_size[0], orig_size[1]) # Use original full size
+        
+        img_temp_orig.close() # Close file handle
+
         count = 0
         for idx, entry in enumerate(self.excel_data, start=1):
+            if not self.winfo_exists(): # Stop thread if window is closed
+                return
             try:
                 prog.update_progress(idx)
-            except Exception as e:
-                print("Progress popup update error:", e)
+            except Exception:
+                pass # Ignore if prog window was closed
+                
             if entry.get("skip", False):
                 continue
+                
             phone = entry.get("phone", "").strip()
             if not phone:
                 entry['image_path'] = None
                 continue
+                
             safe_phone = re.sub(r'[<>:"/\\|?*]', '_', phone)
+            
             try:
                 img = Image.open(self.template_image_path).convert("RGB").resize(new_size, Image.Resampling.LANCZOS)
                 draw = ImageDraw.Draw(img)
                 text_to_draw = entry.get("name", "").strip() or f"{idx}"
-                font_obj = ImageFont.truetype(font_path, font_size)
-                draw.text(text_pos, text_to_draw, font=font_obj, fill=text_color)
+                
+                # --- Scale font size and position ---
+                # Scale font size relative to the new image width
+                scaled_font_size = int(font_size * (new_size[0] / preview_width))
+                font_obj = ImageFont.truetype(font_path, scaled_font_size)
+                
+                # Scale click position based on ratio
+                scaled_pos_x = int(click_ratio_x * new_size[0])
+                scaled_pos_y = int(click_ratio_y * new_size[1])
+                scaled_pos = (scaled_pos_x, scaled_pos_y)
+                
+                draw.text(scaled_pos, text_to_draw, font=font_obj, fill=text_color)
                 output_path = os.path.join(OUTPUT_IMG_FOLDER, f"{safe_phone}.png")
                 img.save(output_path)
                 entry['image_path'] = output_path
                 count += 1
             except Exception as ex:
                 print(f"Error generating image for phone {phone}: {ex}")
-        messagebox.showinfo("Generation Complete", f"Generated {count} images in {OUTPUT_IMG_FOLDER}.", parent=self)
-        try:
-            prog.close()
-        except:
-            pass
-        self.destroy()
+                
+        # --- FIX: Schedule UI updates on the main thread ---
+        def finish_generation():
+            if not self.winfo_exists(): return # Don't do anything if window is gone
+            messagebox.showinfo("Generation Complete", f"Generated {count} images in {OUTPUT_IMG_FOLDER}.", parent=self)
+            try:
+                prog.close()
+            except:
+                pass
+            self.destroy() # This will now run on the main thread
+
+        self.after(0, finish_generation)
+
+
 class SchedulePopup(ctk.CTkToplevel):
     def __init__(self, master, on_schedule_set, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
@@ -1678,31 +2683,376 @@ class SchedulePopup(ctk.CTkToplevel):
         self.on_schedule_set(schedule_time)
         self.destroy()
 
+class FindPopup(ctk.CTkToplevel):
+    """A popup window for finding text in a target CTkTextbox."""
+    def __init__(self, master, target_textbox, **kwargs):
+        super().__init__(master, **kwargs)
+        self.target = target_textbox
+        self.master_app = master # Reference to WabulkXpressApp
+        
+        self.title("Find")
+        self.geometry("350x130")
+        self.resizable(False, False)
+        self.attributes("-topmost", True)
+        self.transient(master)
+        
+        # --- Theme Colors ---
+        mode = ctk.get_appearance_mode().lower()
+        bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        fg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        
+        self.configure(fg_color=bg_color)
+        self.protocol("WM_DELETE_WINDOW", self.on_close_popup)
+        self.bind("<Escape>", lambda e: self.on_close_popup())
+        
+        # --- Layout ---
+        main_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=10)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(1, weight=0)
+
+        self.find_entry = ctk.CTkEntry(
+            main_frame, 
+            placeholder_text="Find...",
+            font=("Arial", 16),
+            height=40,
+            fg_color=inner_color,
+            border_width=0
+        )
+        self.find_entry.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 5))
+        self.find_entry.bind("<Return>", self.find_next)
+        
+        self.find_btn = ctk.CTkButton(
+            main_frame,
+            text="Find Next",
+            command=self.find_next,
+            font=("Arial", 16, "bold"),
+            fg_color="green",
+            hover_color="#45A049",
+            height=40
+        )
+        self.find_btn.grid(row=1, column=0, sticky="ew", padx=(10, 5), pady=10)
+        
+        self.cancel_btn = ctk.CTkButton(
+            main_frame,
+            text="Cancel",
+            command=self.on_close_popup,
+            font=("Arial", 16),
+            fg_color="#555555",
+            hover_color="#777777",
+            height=40,
+            width=80
+        )
+        self.cancel_btn.grid(row=1, column=1, sticky="e", padx=(5, 10), pady=10)
+        
+        self.find_entry.focus_set() # Focus the entry box on open
+        center_window(self)
+
+    def find_next(self, event=None):
+        search_term = self.find_entry.get()
+        if not search_term:
+            return
+
+        # Clear previous highlight
+        self.target.tag_remove("find_highlight", "1.0", "end")
+
+        # Search from the last known index
+        start_index = self.master_app.find_last_index
+        pos = self.target.search(search_term, start_index, "end", nocase=True)
+
+        if pos:
+            # Match found
+            end_pos = f"{pos}+{len(search_term)}c"
+            
+            # Configure and apply the tag
+            self.target.tag_config("find_highlight", background="yellow", foreground="black")
+            self.target.tag_add("find_highlight", pos, end_pos)
+            
+            self.target.see(pos) # Scroll to the match
+            self.master_app.find_last_index = end_pos # Update index for next search
+        else:
+            # No match found from current position
+            if messagebox.askyesno("Find", "End of document reached.\nSearch from beginning?", parent=self):
+                # Reset index and search again
+                self.master_app.find_last_index = "1.0"
+                self.find_next()
+            else:
+                # User said no, reset index for next manual search
+                self.master_app.find_last_index = "1.0"
+
+    def on_close_popup(self):
+        """Clears highlights and resets the search index on close."""
+        self.target.tag_remove("find_highlight", "1.0", "end")
+        self.master_app.find_last_index = "1.0"
+        self.destroy()
+
+
+class TableFindPopup(ctk.CTkToplevel):
+    """A popup window for finding text in the ExcelTable."""
+    def __init__(self, master, target_table, **kwargs):
+        super().__init__(master, **kwargs)
+        self.target_table = target_table # This is the ExcelTable instance
+        self.master_app = master     # This is the WabulkXpressApp
+        
+        # Keep track of the last search position
+        if not hasattr(self.master_app, 'excel_find_last_pos'):
+            self.master_app.excel_find_last_pos = {"row": 0, "col_idx": -1}
+
+        self.title("Find in Table")
+        self.geometry("350x130")
+        self.resizable(False, False)
+        self.attributes("-topmost", True)
+        self.transient(master)
+        
+        mode = ctk.get_appearance_mode().lower()
+        bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        fg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        
+        self.configure(fg_color=bg_color)
+        self.protocol("WM_DELETE_WINDOW", self.on_close_popup)
+        self.bind("<Escape>", lambda e: self.on_close_popup())
+        
+        main_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=10)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(1, weight=0)
+
+        self.find_entry = ctk.CTkEntry(
+            main_frame, placeholder_text="Find...",
+            font=("Arial", 16), height=40,
+            fg_color=inner_color, border_width=0
+        )
+        self.find_entry.grid(row=0, column=0, columnspan=2, sticky="ew", padx=10, pady=(10, 5))
+        self.find_entry.bind("<Return>", self.find_next)
+        
+        self.find_btn = ctk.CTkButton(
+            main_frame, text="Find Next", command=self.find_next,
+            font=("Arial", 16, "bold"), fg_color="green",
+            hover_color="#45A049", height=40
+        )
+        self.find_btn.grid(row=1, column=0, sticky="ew", padx=(10, 5), pady=10)
+        
+        self.cancel_btn = ctk.CTkButton(
+            main_frame, text="Cancel", command=self.on_close_popup,
+            font=("Arial", 16), fg_color="#555555",
+            hover_color="#777777", height=40, width=80
+        )
+        self.cancel_btn.grid(row=1, column=1, sticky="e", padx=(5, 10), pady=10)
+        
+        self.find_entry.focus_set()
+        center_window(self)
+
+    def find_next(self, event=None):
+        search_term = self.find_entry.get().lower()
+        if not search_term:
+            return
+
+        # Clear previous highlights
+        self.clear_all_highlights()
+
+        # Define the order of columns to search
+        search_cols = ["phone", "name", "custom1", "custom2"]
+        
+        start_row = self.master_app.excel_find_last_pos["row"]
+        start_col_idx = self.master_app.excel_find_last_pos["col_idx"] + 1
+
+        # Iterate through the table
+        for r_idx in range(start_row, len(self.target_table.rows)):
+            row = self.target_table.rows[r_idx]
+            
+            for c_idx in range(start_col_idx, len(search_cols)):
+                col_name = search_cols[c_idx]
+                var_name = f"{col_name}_var" # e.g., "phone_var"
+                entry_name = col_name        # e.g., "phone"
+                
+                if var_name in row:
+                    cell_content = row[var_name].get().lower()
+                    if search_term in cell_content:
+                        # --- Match Found! ---
+                        widget = row[entry_name]
+                        
+                        # 1. Focus and Select
+                        widget.focus_set()
+                        start_pos = cell_content.find(search_term)
+                        end_pos = start_pos + len(search_term)
+                        widget.select_range(start_pos, end_pos) # CTkEntry uses select_range
+                        
+                        # 2. Scroll to the widget
+                        try:
+                            self.target_table.update_idletasks()
+                            row_frame_y = row["row_frame"].winfo_y()
+                            inner_frame_height = self.target_table._parent_canvas.winfo_children()[0].winfo_height()
+                            if inner_frame_height > 0:
+                                fraction = row_frame_y / inner_frame_height
+                                self.target_table._parent_canvas.yview_moveto(fraction)
+                        except Exception as e:
+                            print(f"Error scrolling to widget: {e}")
+
+                        # 3. Update last position
+                        self.master_app.excel_find_last_pos = {"row": r_idx, "col_idx": c_idx}
+                        return # Stop after finding one match
+            
+            # Reset col index for the next row
+            start_col_idx = 0 
+
+        # --- No Match Found ---
+        if messagebox.askyesno("Find", "End of table reached.\nSearch from beginning?", parent=self):
+            self.master_app.excel_find_last_pos = {"row": 0, "col_idx": -1} # Reset
+            self.find_next()
+        else:
+            self.master_app.excel_find_last_pos = {"row": 0, "col_idx": -1} # Reset for next time
+
+    def clear_all_highlights(self):
+        """Iterates all entry widgets and clears selection."""
+        for row in self.target_table.rows:
+            for col_name in ["phone", "name", "custom1", "custom2"]:
+                if col_name in row:
+                    try:
+                        row[col_name].select_clear()
+                    except Exception:
+                        pass # Ignore if widget doesn't exist
+
+    def on_close_popup(self):
+        self.clear_all_highlights()
+        self.destroy()
 
 class TranslatePopup(ctk.CTkToplevel):
     def __init__(self, master, process_callback, *args, **kwargs):
         super().__init__(master, *args, **kwargs)
         self.title("Translate Message")
         self.iconbitmap(TITLE_ICON_PATH)
-        self.geometry("400x200")
+        self.geometry("550x300") # New geometry
         self.resizable(False, False)
         self.wm_attributes("-topmost", True)
         self.process_callback = process_callback
         
         mode = ctk.get_appearance_mode().lower()
         bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        fg_color = DARK_FG if mode == "dark" else LIGHT_FG # Frame background
         
         self.configure(fg_color=bg_color) # Theme
-        ctk.CTkLabel(self, text="Select Target Language:", font=("Arial", 14, "bold")).pack(pady=10)
-        languages = ["English", "Hindi", "Marathi", "Spanish", "French", "German", "Italian", "Portuguese", "Russian", "Chinese", "Japanese", "Korean", "Arabic"]
+        
+        # --- Main Layout (2 columns) ---
+        self.grid_columnconfigure(0, weight=1) # Left controls
+        self.grid_columnconfigure(1, weight=1) # Right image
+        self.grid_rowconfigure(0, weight=1)
+        
+        # --- Left Frame (Controls) ---
+        left_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=15)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        
+        left_frame.grid_columnconfigure(0, weight=1)
+        left_frame.grid_rowconfigure(0, weight=0) # Label
+        left_frame.grid_rowconfigure(1, weight=1) # Dropdown (centered)
+        left_frame.grid_rowconfigure(2, weight=1) # Buttons (centered)
+        
+        # 1. Label
+        ctk.CTkLabel(left_frame, text="Select Target Language:", font=("Arial", 18, "bold")).grid(row=0, column=0, pady=(20, 10), padx=20)
+        
+        # 2. Languages List (Expanded)
+        languages = [
+            "English", "Hindi", "Marathi", "Spanish", "French", "German", "Italian", 
+            "Portuguese", "Russian", "Chinese (Simplified)", "Japanese", "Korean", 
+            "Arabic", "Bengali", "Gujarati", "Kannada", "Malayalam", "Odia", 
+            "Punjabi", "Tamil", "Telugu", "Urdu", "Dutch", "Turkish", "Vietnamese"
+        ]
         self.language_var = tk.StringVar(value="English")
-        ctk.CTkOptionMenu(self, values=languages, variable=self.language_var).pack(pady=10)
-        ctk.CTkButton(self, text="OK", command=self.on_ok).pack(pady=10)
+        
+        # Get theme colors for the dropdown
+        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        text_color = "white" if mode == "dark" else "black"
+
+        self.language_menu = ctk.CTkOptionMenu(
+            left_frame, 
+            values=languages, 
+            variable=self.language_var,
+            font=("Arial", 16, "bold"),         # Bigger font
+            dropdown_font=("Arial", 16),      # Bigger font
+            height=50,                        # Taller
+            corner_radius=100,                # Full rounded edge
+            fg_color="green",                 # Green color
+            button_color="#45A049",           # Green arrow button
+            button_hover_color="#3E8E41",     # Green arrow hover
+            # --- UPDATED LINES ---
+            dropdown_fg_color=DARK_BG,        # <-- CHANGED: Pitch black background
+            dropdown_hover_color=inner_color, # Use the inner color for hover
+            dropdown_text_color=text_color,   # Set appropriate text colo
+        )
+        # Added more space with pady=20
+        self.language_menu.grid(row=1, column=0, pady=20, padx=30, sticky="ew")
+
+        # 4. Button Frame
+        button_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        button_frame.grid(row=2, column=0, pady=(10, 20))
+        button_frame.grid_columnconfigure((0, 1), weight=1)
+
+        btn_font = ("Arial", 16, "bold")
+        btn_height = 50
+        btn_width = 120
+        btn_radius = 100
+
+        # 5. OK Button
+        self.ok_button = ctk.CTkButton(
+            button_frame, 
+            text="OK", 
+            command=self.on_ok,
+            font=btn_font,
+            height=btn_height,
+            width=btn_width,
+            corner_radius=btn_radius,
+            fg_color="green",
+            hover_color="#45A049"
+        )
+        self.ok_button.grid(row=0, column=0, padx=5)
+
+        # 6. Cancel Button
+        self.cancel_button = ctk.CTkButton(
+            button_frame, 
+            text="Cancel", 
+            command=self.destroy,
+            font=btn_font,
+            height=btn_height,
+            width=btn_width,
+            corner_radius=btn_radius,
+            fg_color="#555555", # Neutral gray
+            hover_color="#777777"
+        )
+        self.cancel_button.grid(row=0, column=1, padx=5)
+
+        # --- Right Frame (Image) ---
+        right_frame = ctk.CTkFrame(self, fg_color=fg_color, corner_radius=15)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(0, 20), pady=20)
+        right_frame.grid_rowconfigure(0, weight=1)
+        right_frame.grid_columnconfigure(0, weight=1)
+
+        try:
+            TRANSLATE_ICON_PATH = os.path.join(BIN_FOLDER, "translate_icon.png")
+            img_size = (150, 150)
+            img = Image.open(TRANSLATE_ICON_PATH).resize(img_size, Image.Resampling.LANCZOS)
+            translate_icon = ctk.CTkImage(light_image=img, dark_image=img, size=img_size)
+            
+            img_label = ctk.CTkLabel(right_frame, image=translate_icon, text="")
+            img_label.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        except Exception as e:
+            print(f"Error loading translate icon: {e}")
+            fallback_label = ctk.CTkLabel(right_frame, text="Translate", font=("Arial", 24, "bold"))
+            fallback_label.grid(row=0, column=0, sticky="nsew")
+
+        # --- Finalize ---
         center_window(self)
+        self.bind("<Return>", lambda e: self.on_ok())
+        self.bind("<Escape>", lambda e: self.destroy())
+
     def on_ok(self):
         lang = self.language_var.get()
         self.process_callback(lang)
         self.destroy()
+
+
+
 
 # --- (Make sure AI_ICON_PATH is defined globally near other paths) ---
 AI_ICON_PATH = os.path.join(BIN_FOLDER, "ai_icon.png")
@@ -1865,6 +3215,416 @@ class AIPopup(ctk.CTkToplevel):
         # Check if the window still exists before destroying
         if self.winfo_exists():
             self.destroy()
+
+# ----------------------- NEW UPDATE POPUP CLASS -----------------------
+
+class UpdatePopup(ctk.CTkToplevel):
+    def __init__(self, master, *args, **kwargs):
+        super().__init__(master, *args, **kwargs)
+        self.master_app = master  # Reference to the main WabulkXpressApp
+        self.title("Check for Updates")
+        self.iconbitmap(TITLE_ICON_PATH)
+        self.geometry("600x400")
+        self.resizable(False, False)
+        self.wm_attributes("-topmost", True)
+        self.transient(master)
+
+        self.installer_url = None
+        self.installer_name = None
+        self.save_path = None
+        
+        # --- Theme Colors ---
+        mode = ctk.get_appearance_mode().lower()
+        self.bg_color = DARK_BG if mode == "dark" else LIGHT_BG
+        self.fg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        self.inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        
+        self.configure(fg_color=self.bg_color)
+        
+        # --- Main Layout ---
+        self.grid_columnconfigure(0, weight=1) # Left controls
+        self.grid_columnconfigure(1, weight=1) # Right image
+        self.grid_rowconfigure(0, weight=1)    # Main content row
+        self.grid_rowconfigure(1, weight=0)    # Progress bar row
+
+        # --- Left Frame (Controls) ---
+        self.left_frame = ctk.CTkFrame(self, fg_color=self.fg_color, corner_radius=15)
+        self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=20)
+        self.left_frame.grid_columnconfigure(0, weight=1)
+        self.left_frame.grid_rowconfigure(0, weight=0) # Title
+        self.left_frame.grid_rowconfigure(1, weight=1) # Content (Changelog/Status)
+        self.left_frame.grid_rowconfigure(2, weight=0) # Button
+
+        # --- Right Frame (Image) ---
+        self.right_frame = ctk.CTkFrame(self, fg_color=self.fg_color, corner_radius=15)
+        self.right_frame.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=20)
+        self.right_frame.grid_rowconfigure(0, weight=1)
+        self.right_frame.grid_columnconfigure(0, weight=1)
+
+        try:
+            # You must create this image and place it in your 'bin' folder
+            UPDATE_GRAPHIC_PATH = os.path.join(BIN_FOLDER, "update_graphic.png") 
+            img_size = (200, 200)
+            img = Image.open(UPDATE_GRAPHIC_PATH)
+            
+            # Create rounded corners
+            mask = Image.new("L", img.size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.rounded_rectangle((0, 0) + img.size, radius=20, fill=255)
+            img.putalpha(mask)
+            
+            update_icon = ctk.CTkImage(light_image=img, dark_image=img, size=img_size)
+            
+            img_label = ctk.CTkLabel(self.right_frame, image=update_icon, text="")
+            img_label.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
+        except Exception as e:
+            print(f"Error loading update_graphic.png: {e}")
+            fallback_label = ctk.CTkLabel(self.right_frame, text="Update", font=("Arial", 24, "bold"))
+            fallback_label.grid(row=0, column=0, sticky="nsew")
+
+        # --- Progress Bar (Spans both columns) ---
+        self.progress_bar = ctk.CTkProgressBar(self, corner_radius=10, fg_color=self.inner_color)
+        self.progress_bar.grid(row=1, column=0, columnspan=2, sticky="ew", padx=20, pady=(0, 20))
+        
+        # --- Initial UI State ---
+        self.setup_checking_ui()
+        
+        # --- Start Check ---
+        self.after(100, self.start_check)
+        
+        center_window(self)
+        
+    def setup_checking_ui(self):
+        """Sets the UI to the 'Checking for update...' state."""
+        self.status_label = ctk.CTkLabel(self.left_frame, text="Checking for updates...", font=("Arial", 18, "bold"))
+        self.status_label.grid(row=0, column=0, pady=(20, 10), padx=20)
+        
+        self.changelog_box = ctk.CTkTextbox(self.left_frame, corner_radius=10, fg_color=self.inner_color, border_width=0, state="disabled")
+        # Leave changelog box to maintain layout, but keep it empty
+        self.changelog_box.grid(row=1, column=0, sticky="nsew", padx=20, pady=10)
+
+        self.action_button = ctk.CTkButton(
+            self.left_frame, text="Cancel", 
+            command=self.destroy,
+            height=40, font=("Arial", 16, "bold"),
+            fg_color="#555555", hover_color="#777777"
+        )
+        self.action_button.grid(row=2, column=0, pady=(10, 20), padx=20, sticky="ew")
+        
+        self.progress_bar.configure(mode="indeterminate")
+        self.progress_bar.start()
+
+    def start_check(self):
+        """Launches the update check in a separate thread."""
+        threading.Thread(target=self.check_for_update_thread, daemon=True).start()
+
+    def check_for_update_thread(self):
+        """WORKER THREAD: Connects to GitHub API."""
+        try:
+            response = requests.get(GITHUB_API_URL, timeout=15)
+            response.raise_for_status()
+            data = response.json()
+            latest_version_tag = data.get("tag_name", "0")
+            
+            # Update the last check time *after* a successful check
+            try:
+                with open(UPDATE_CHECK_FILE, 'w') as f:
+                    f.write(str(time.time()))
+            except Exception as e:
+                print(f"DEBUG: Failed to update timestamp file: {e}")
+
+            if float(latest_version_tag) > float(CURRENT_VERSION):
+                # --- UPDATE AVAILABLE ---
+                changelog_body = data.get("body", "No changelog available.")
+                assets = data.get("assets", [])
+                installer_url = None
+                installer_name = None
+
+                # Find the .exe installer in the assets
+                for asset in assets:
+                    if asset.get("name", "").endswith(".exe"):
+                        installer_url = asset.get("browser_download_url")
+                        installer_name = asset.get("name")
+                        break
+                
+                if installer_url and installer_name:
+                    self.after(0, self.show_update_available_ui, latest_version_tag, changelog_body, installer_url, installer_name)
+                else:
+                    self.after(0, self.show_error_ui, "Update found, but no .exe installer asset was present in the release.")
+            else:
+                # --- NO UPDATE ---
+                self.after(0, self.show_no_update_ui)
+                
+        except requests.exceptions.Timeout:
+            self.after(0, self.show_error_ui, "Update check timed out. Check your internet connection.")
+        except Exception as e:
+            self.after(0, self.show_error_ui, f"An error occurred: {e}")
+
+    def show_no_update_ui(self):
+        """Updates UI to show 'You are on the latest version'."""
+        self.progress_bar.stop()
+        self.progress_bar.set(0)
+        self.status_label.configure(text=f"You're up to date! (v{CURRENT_VERSION})")
+        self.changelog_box.configure(state="normal")
+        self.changelog_box.delete("0.0", "end")
+        self.changelog_box.insert("0.0", "You are running the latest version of WabulkXpress.")
+        self.changelog_box.configure(state="disabled")
+        self.action_button.configure(text="Close", command=self.destroy, fg_color="green", hover_color="#45A049")
+
+    def show_error_ui(self, message):
+        """Updates UI to show an error message."""
+        self.progress_bar.stop()
+        self.progress_bar.set(0)
+        self.status_label.configure(text="Update Check Failed")
+        self.changelog_box.configure(state="normal")
+        self.changelog_box.delete("0.0", "end")
+        self.changelog_box.insert("0.0", f"Error: {message}")
+        self.changelog_box.configure(state="disabled")
+        self.action_button.configure(text="Close", command=self.destroy)
+
+    def show_update_available_ui(self, version, changelog, url, name):
+        """Updates UI to show update details and Download button."""
+        self.installer_url = url
+        self.installer_name = name
+        
+        self.progress_bar.stop()
+        self.progress_bar.set(0)
+        self.status_label.configure(text=f"New Version Available: v{version}")
+        
+        self.changelog_box.configure(state="normal")
+        self.changelog_box.delete("0.0", "end")
+        self.changelog_box.insert("0.0", f"--- Changelog ---\n\n{changelog}")
+        self.changelog_box.configure(state="disabled")
+        
+        self.action_button.configure(
+            text="Download Update", 
+            command=self.start_download, 
+            fg_color="green", 
+            hover_color="#45A049"
+        )
+
+    def start_download(self):
+        """Disables button and starts the download thread."""
+        if not self.installer_url:
+            self.show_error_ui("Download URL is missing.")
+            return
+
+        self.action_button.configure(text="Downloading...", state="disabled")
+        self.progress_bar.configure(mode="determinate")
+        self.progress_bar.set(0)
+        
+        # Save the installer to the same directory as the app
+        self.save_path = os.path.join(os.getcwd(), self.installer_name)
+        
+        threading.Thread(target=self.download_thread, daemon=True).start()
+
+    def download_thread(self):
+        """WORKER THREAD: Downloads the file."""
+        try:
+            response = requests.get(self.installer_url, stream=True, timeout=15)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded_size = 0
+            
+            with open(self.save_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
+                    
+                    if total_size > 0:
+                        progress = downloaded_size / total_size
+                        # Schedule progress update on main thread
+                        self.after(0, self.update_download_progress, progress)
+
+            # Download complete
+            self.after(0, self.show_install_ui)
+            
+        except Exception as e:
+            self.after(0, self.show_error_ui, f"Download failed: {e}")
+
+    def update_download_progress(self, progress):
+        """Updates the progress bar and button text."""
+        self.progress_bar.set(progress)
+        self.action_button.configure(text=f"Downloading... {int(progress * 100)}%")
+
+    def show_install_ui(self):
+        """Updates UI to show 'Install' button."""
+        self.progress_bar.set(1)
+        self.status_label.configure(text="Download Complete!")
+        self.action_button.configure(
+            text="Install and Relaunch",
+            state="normal",
+            command=self.install_and_close,
+            fg_color="#006400", # Darker green
+            hover_color="#008000"
+        )
+
+    def install_and_close(self):
+        """Launches the installer and closes the app."""
+        try:
+            self.master_app.log_live("🚀 Launching installer...")
+            os.startfile(self.save_path)
+            # Call the main app's close method
+            self.master_app.on_close() 
+        except Exception as e:
+            self.show_error_ui(f"Failed to launch installer: {e}")
+            messagebox.showerror("Error", f"Failed to launch installer at {self.save_path}.\n\nError: {e}")
+            self.action_button.configure(state="normal") # Re-enable button
+
+
+class ProfileButton(ctk.CTkFrame):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, fg_color="transparent", **kwargs)
+        self.profile_url = GITHUB_PROFILE_URL
+        
+        # --- Image Size & Animation Settings ---
+        self.image_size_val = 30 # Diameter of avatar (smaller)
+        self.ring_thickness = 3
+        self.image_final_size = self.image_size_val + self.ring_thickness * 2 # 56
+        
+        self.frame_height = 70 # Match other header buttons
+        self.start_width = 70  # Collapsed width (matches height)
+        self.text_width = 140  # Width for text
+        self.end_width = self.start_width + self.text_width + 10 # 70 + 140 + 10 = 220
+        
+        self.current_width = self.start_width
+        self.animation_duration = 0.25 # 250ms for a fast, smooth transition
+        self.start_time = 0
+        self.animating_out = False
+
+        # Configure outer frame size (holds the button)
+        self.configure(height=self.frame_height)
+        
+        # Get theme colors
+        mode = ctk.get_appearance_mode().lower()
+        self.bg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        
+        # --- 1. Create Profile Image with Ring (Local) ---
+        try:
+            avatar = Image.open(MY_PROFILE_PIC).convert("RGBA")
+            size = (self.image_size_val, self.image_size_val)
+            final_size_tuple = (self.image_final_size, self.image_final_size)
+
+            base = Image.new("RGBA", final_size_tuple, (0, 0, 0, 0))
+            draw = ImageDraw.Draw(base)
+            
+            colors = ["#EA4335", "#FBBC05", "#34A853", "#4285F4"]
+            
+            bbox = [(0, 0), final_size_tuple]
+            draw.arc(bbox, 270, 360, fill=colors[0], width=self.ring_thickness)
+            draw.arc(bbox, 180, 270, fill=colors[1], width=self.ring_thickness)
+            draw.arc(bbox, 90, 180, fill=colors[2], width=self.ring_thickness)
+            draw.arc(bbox, 0, 90, fill=colors[3], width=self.ring_thickness)
+
+            mask = Image.new("L", size, 0)
+            draw_mask = ImageDraw.Draw(mask)
+            draw_mask.ellipse([(0, 0), size], fill=255) # Fixed syntax
+            
+            avatar = avatar.resize(size, Image.Resampling.LANCZOS)
+            base.paste(avatar, (self.ring_thickness, self.ring_thickness), mask)
+            
+            self.profile_image = ctk.CTkImage(light_image=base, dark_image=base, size=final_size_tuple)
+        
+        except Exception as e:
+            print(f"Error loading local profile pic: {e}")
+            logger.error(f"Error loading local profile pic: {e}")
+            size = (self.image_final_size, self.image_final_size)
+            placeholder = Image.new("RGBA", size, (0,0,0,0))
+            draw = ImageDraw.Draw(placeholder)
+            draw.ellipse([(0, 0), size], fill="#333333") # Fixed syntax
+            self.profile_image = ctk.CTkImage(light_image=placeholder, dark_image=placeholder, size=size)
+
+        # --- 2. Main Animated Frame (The "Unit") ---
+        self.main_frame = ctk.CTkFrame(self, 
+                                       width=self.start_width,
+                                       height=self.frame_height, 
+                                       corner_radius=35, # Half of height
+                                       fg_color=self.bg_color)
+        self.main_frame.pack(side="right", fill="y", pady=0, padx=0)
+        self.main_frame.pack_propagate(False) 
+
+        # --- 3. Text Label (Created but not packed) ---
+        self.text_label = ctk.CTkLabel(self.main_frame, 
+                                       text="Parth Sancheti", 
+                                       font=("Arial", 16, "bold"),
+                                       fg_color="transparent")
+        
+        # --- 4. Image Label (Packed on the right) ---
+        self.image_label = ctk.CTkLabel(self.main_frame, text="", image=self.profile_image, fg_color="transparent")
+        # Pack with padding to center it in the 70px frame
+        self.image_label.pack(side="right", padx=7) 
+
+        # Bind events to all components
+        self.bind_all("<Enter>", self.on_enter)
+        self.bind_all("<Leave>", self.on_leave)
+        self.bind_all("<Button-1>", self.open_profile)
+
+    def bind_all(self, event, command):
+        self.bind(event, command)
+        self.main_frame.bind(event, command)
+        self.text_label.bind(event, command)
+        self.image_label.bind(event, command)
+
+    def open_profile(self, event=None):
+        webbrowser.open(self.profile_url)
+        
+    def on_enter(self, event=None):
+        self.animating_out = False
+        self.start_time = time.time()
+        
+        # --- NEW: Pack text to the LEFT of the image ---
+        self.text_label.pack(side="left", padx=(20, 10), fill="both", expand=True)
+        self.animate_expand()
+
+    def on_leave(self, event=None):
+        self.animating_out = True
+        self.start_time = time.time()
+        
+        # --- NEW: Unpack text ---
+        self.text_label.pack_forget()
+        self.animate_collapse()
+        
+    # --- Easing Functions for smooth start/end ---
+    def ease_out_quad(self, t):
+        return 1 - (1 - t) ** 2
+
+    def ease_in_quad(self, t):
+        return t ** 2
+
+    def animate_expand(self):
+        elapsed = time.time() - self.start_time
+        progress = min(1.0, elapsed / self.animation_duration)
+        eased_progress = self.ease_out_quad(progress)
+        
+        self.current_width = self.start_width + (self.end_width - self.start_width) * eased_progress
+        self.main_frame.configure(width=self.current_width)
+        
+        if progress < 1.0 and not self.animating_out:
+            self.after(16, self.animate_expand)
+        elif progress >= 1.0 and not self.animating_out:
+            self.main_frame.configure(width=self.end_width)
+
+    def animate_collapse(self):
+        elapsed = time.time() - self.start_time
+        progress = min(1.0, elapsed / self.animation_duration)
+        eased_progress = self.ease_in_quad(progress)
+        
+        self.current_width = self.end_width - (self.end_width - self.start_width) * eased_progress
+        self.main_frame.configure(width=self.current_width)
+        
+        if progress < 1.0 and self.animating_out:
+            self.after(16, self.animate_collapse)
+        elif progress >= 1.0 and self.animating_out:
+            self.main_frame.configure(width=self.start_width)
+
+    def update_theme(self):
+        mode = ctk.get_appearance_mode().lower()
+        self.bg_color = DARK_FG if mode == "dark" else LIGHT_FG
+        self.main_frame.configure(fg_color=self.bg_color)
+
+
+
 def generate_html_report(success, failure):
     total = success + failure
     html_content = f"""<!DOCTYPE html>
@@ -1943,23 +3703,23 @@ def generate_html_report(success, failure):
         webbrowser.open("file:///" + report_path)
     except Exception as e:
         print(f"Error generating/opening HTML report: {e}")
-class WabulkXpressApp(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-        ctk.set_appearance_mode("Dark") # Theme
-        # ctk.set_default_color_theme("blue") # Removed per request
-        self.configure(fg_color=DARK_BG) # Theme
-        self.title("WabulkXpress")
-        self.geometry("1400x900")
-        if os.path.exists(TITLE_ICON_PATH):
-            icon_img = Image.open(TITLE_ICON_PATH).resize((32,32), Image.Resampling.LANCZOS)
-            icon_tk = ImageTk.PhotoImage(icon_img)
-            self.wm_iconphoto(False, icon_tk)
-        loco_icon = os.path.join(os.getcwd(), "bin", "loco.ico")
-        if os.path.exists(loco_icon):
-            self.iconbitmap(loco_icon)
-        self.protocol("WM_DELETE_WINDOW", self.on_close) # Ensure on_close is referenced
+class WabulkXpressApp(ctk.CTkFrame):       
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.master = master
+        self.animation_active = False
+        self.ai_start_time = 0
+        # 20-step Blue/Purple "Pulse" (2 colors, 20 shades)
+        self.gradient_colors = [
+            "#4285F4", "#5077ED", "#5E69E6", "#6C5CDF", "#7A4ED8",
+            "#8841D1", "#9633CA", "#A426C3", "#B218BC", "#C00BB5",
+            "#B218BC", "#A426C3", "#9633CA", "#8841D1", "#7A4ED8",
+            "#6C5CDF", "#5E69E6", "#5077ED", "#4285F4", "#3473E7"
+        ]
         self.attachments = {"Picture": None, "Video": None, "Document": None, "Any": None}
+        self.all_hints = [] # <-- ADD THIS LINE
+        self.find_last_index = "1.0" # <-- ADD THIS LINE
+        self.excel_find_last_pos = {"row": 0, "col_idx": -1}
         self.custom_image_enabled = False
         self.excel_data = []
         self.sending = False
@@ -1977,6 +3737,7 @@ class WabulkXpressApp(ctk.CTk):
         self.create_sidebar()
         self.create_header()
         self.create_main_area()
+        self._create_custom_title_bar()
         self.gemini_api_key = "AIzaSyDmYy3CFKb0aoVRYZANAyp6X3jgKUe__6g"  # Fallback (replace with actual key or handle gracefully)
         self.gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.gemini_api_key}"
         self.ai_prompts = {
@@ -1989,14 +3750,77 @@ class WabulkXpressApp(ctk.CTk):
         }
         self.schedule_background_update_check()
         
-        if not os.path.exists(FLAG_FILE):
+        # --- NEW LICENSE CHECK ---
+        if not self.validate_local_license():
+            # License is missing, invalid, or expired. Show the popup.
             FirstRunPopup(self, self.first_run_closed).wait_window()
         else:
+            # License is valid, just log welcome.
             self.first_run_closed()
+        # --- END NEW LICENSE CHECK ---
+
         self.refresh_icons()
+
+    def open_find_popup(self, event=None):
+        """Opens the Find & Replace dialog."""
+        # This will create a new popup. 
+        # You could add logic here to prevent opening multiple.
+        FindPopup(self, target_textbox=self.message_text)
         
+    def open_excel_find_popup(self, event=None):
+        """Opens the Find dialog for the ExcelTable."""
+        TableFindPopup(self, target_table=self.excel_table)
+
+
     def first_run_closed(self):
         self.log_live("Welcome to WabulkXpress!")
+
+    def validate_local_license(self):
+        """Checks for license.dat on startup."""
+        if not os.path.exists(LICENSE_FILE):
+            logger.info("license.dat not found. Showing FirstRunPopup.")
+            return False # Show popup
+            
+        try:
+            with open(LICENSE_FILE, 'r') as f:
+                data = json.load(f)
+                
+            expiry_date_str = data.get('expiry_date')
+            key = data.get('key')
+            
+            if not expiry_date_str or not key:
+                raise ValueError("License file is incomplete.")
+                
+            expiry_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
+            today = datetime.now().date()
+            
+            if today > expiry_date:
+                logger.warning(f"License for key {key} expired on {expiry_date_str}.")
+                messagebox.showerror("License Expired", 
+                                     f"Your license for key {key} expired on {expiry_date_str}.\n"
+                                     "Please enter a new product key.")
+                return False # Show popup
+            else:
+                days_left = (expiry_date - today).days
+                self.log_live(f"✅ License for key {key} is valid. Expires in {days_left} days.")
+                logger.info(f"License valid for {days_left} more days.")
+                return True # License is valid!
+                
+        except json.JSONDecodeError:
+            logger.error("Failed to decode license.dat. File is corrupt.")
+            messagebox.showerror("License Error", "Your license file (license.dat) is corrupt. Please re-enter your key.")
+        except Exception as e:
+            logger.error(f"Error reading license file: {e}", exc_info=True)
+            messagebox.showerror("License Error", f"An error occurred reading your license file: {e}\nPlease re-enter your key.")
+            
+        # If we got here, an error occurred. Delete the bad file and show popup.
+        try:
+            os.remove(LICENSE_FILE)
+        except Exception as e:
+            logger.error(f"Could not remove corrupt license file: {e}")
+            
+        return False # Show popup
+
 
     def schedule_background_update_check(self):
         """Checks if 7 days have passed and schedules a background update check."""
@@ -2065,12 +3889,6 @@ class WabulkXpressApp(ctk.CTk):
             webbrowser.open(GITHUB_RELEASES_URL)
             
     def refresh_icons(self):
-        self.github_button.configure(
-            image=self.get_icon("github"),
-            fg_color="transparent",
-            hover_color="#333333",
-            corner_radius=0
-        )
         self.update_button.configure(
             image=self.get_icon("update"),
             fg_color="transparent",
@@ -2120,7 +3938,10 @@ class WabulkXpressApp(ctk.CTk):
             command=self.open_schedule_popup
         )
         self.schedule_button.grid(row=1, column=1, padx=0, pady=2)  # Reduced padx to 0 for smaller gap between start and schedule
-        # Login button with full-rounded corners, bigger font, and green default color
+        # --- ADD THIS LINE ---
+        self.all_hints.append(HoverHint(self.schedule_button, 
+                  "Schedule your messages to be sent at a specific time. The app must remain open.", 
+                  os.path.join(BIN_FOLDER, "hint_schedule.png")))    # Login button with full-rounded corners, bigger font, and green default color
         self.login_button = CustomRoundedButton(
             center_frame, text="Login", corner_radius=100, height=50, width=120, command=self.launch_whatsapp_beta
         )
@@ -2138,13 +3959,38 @@ class WabulkXpressApp(ctk.CTk):
         self.live_alerts.pack(side="bottom", pady=20, padx=10) # Added horizontal padding
         self.live_alerts.insert("0.0", "Live Alerts:\n")
         self.live_alerts.configure(state="disabled")
+
+    def is_logged_in(self):
+        """Checks if the selenium session folder exists and is not empty."""
+        if not os.path.exists(SESSION_DIR) or not os.listdir(SESSION_DIR):
+            self.log_live("❗️ Login required. Please use the Login button.")
+            messagebox.showerror("Login Required", "You must log in to WhatsApp Web first. Please use the 'Login' button.")
+            return False
+        return True
         
     def open_schedule_popup(self):
+        # --- NEW CHECKS (Same as start_sending) ---
+        if not self.is_logged_in():
+            return # Stop if not logged in
+
+        data = self.excel_table.get_data()
+        if not data:
+            messagebox.showerror("Error", "No phone numbers loaded. Please add at least one contact to schedule.")
+            return # Stop if no data
+
+        msg = self.message_text.get("0.0", "end-1c").strip()
+        attachment_present = "Any" in self.attachments and self.attachments["Any"]
+        
+        if not msg and not self.custom_image_enabled and not attachment_present:
+            messagebox.showerror("Error", "No content to send. Please add a message, attachment, or custom image to schedule.")
+            return # Stop if no content
+        # --- END NEW CHECKS ---
+
         SchedulePopup(self, self.set_schedule_time)
         
     def create_header(self):
         # Double the height of the header box (assuming default ~40, set to 80)
-        self.header.configure(height=70)
+        self.header.configure(height=80)
         
         # Use grid for better vertical centering control
         self.header.grid_columnconfigure(0, weight=1)
@@ -2173,7 +4019,7 @@ class WabulkXpressApp(ctk.CTk):
         
         # Right side: Buttons vertically centered and bigger
         right_frame = ctk.CTkFrame(self.header, fg_color="transparent")
-        right_frame.grid(row=0, column=1, sticky="ne", padx=10, pady=10)
+        right_frame.grid(row=0, column=1, sticky="e", padx=10, pady=10)
         right_frame.grid_rowconfigure(0, weight=1)
         right_frame.grid_rowconfigure(2, weight=1)
         right_frame.grid_rowconfigure(1, weight=0)
@@ -2199,14 +4045,8 @@ class WabulkXpressApp(ctk.CTk):
         )
         self.update_button.grid(row=1, column=1, padx=5, sticky="e")
         
-        self.github_button = ctk.CTkButton(
-            right_frame,
-            text="",
-            width=70,  # Bigger
-            height=70,  # Bigger and taller
-            command=lambda: webbrowser.open(GITHUB_RELEASES_URL),
-        )
-        self.github_button.grid(row=1, column=2, padx=(5, 0), sticky="e")
+        self.profile_button = ProfileButton(right_frame)
+        self.profile_button.grid(row=1, column=2, padx=(5, 0), sticky="e")
         
     def get_icon(self, icon_name):
         mode = ctk.get_appearance_mode().lower()
@@ -2239,10 +4079,15 @@ class WabulkXpressApp(ctk.CTk):
         
         self.main_area.rowconfigure(0, weight=1)
 
+
     def create_message_area(self, parent):
+            # --- Configure Parent Grid ---
+            parent.grid_rowconfigure(3, weight=1) # Row 3 (text_area_frame) expands
+            parent.grid_columnconfigure(0, weight=1) # Full width
+
             # --- Top Buttons (Side-by-side) ---
             top_button_frame = ctk.CTkFrame(parent, corner_radius=10, fg_color="transparent")
-            top_button_frame.pack(fill="x", pady=(10, 5), padx=5)
+            top_button_frame.grid(row=0, column=0, sticky="ew", pady=(10, 5), padx=5) # Use grid
             top_button_frame.columnconfigure((0, 1), weight=1) # Make columns expand equally
 
             self.attachment_btn = ctk.CTkButton(
@@ -2268,11 +4113,11 @@ class WabulkXpressApp(ctk.CTk):
                 hover_color="#45A049"
             )
             self.custom_image_btn.grid(row=0, column=1, padx=(5, 10), pady=5, sticky="ew") # Use grid
-            HoverHint(self.custom_image_btn, "Automatically places the receiver’s name onto your custom image template — perfect for personalized visual messages!", os.path.join(os.getcwd(), "bin", "woi_ci.png"))
+            self.all_hints.append(HoverHint(self.custom_image_btn, "Automatically places the receiver’s name onto your custom image template — perfect for personalized visual messages!", os.path.join(os.getcwd(), "bin", "woi_ci.png")))
 
             # --- Formatting Buttons (Two Rows) ---
             fmt_frame = ctk.CTkFrame(parent, corner_radius=10, fg_color="transparent") # Theme
-            fmt_frame.pack(fill="x", pady=5, padx=5)
+            fmt_frame.grid(row=1, column=0, sticky="ew", pady=5, padx=5) # Use grid
             # Configure columns for spacing in the first row
             fmt_frame.columnconfigure((0, 1, 2, 3), weight=0) # Left buttons don't expand
             fmt_frame.columnconfigure(4, weight=1) # Spacer expands
@@ -2322,43 +4167,65 @@ class WabulkXpressApp(ctk.CTk):
 
             self.username_btn = ctk.CTkButton(row1_fmt_frame, text="User", command=lambda: self.insert_placeholder("{User_Name}"), **placeholder_btn_style)
             self.username_btn.grid(row=0, column=0, padx=5, pady=0, sticky="ew")
-            HoverHint(self.username_btn, "Inserts {User_Name} placeholder", os.path.join(os.getcwd(), "bin", "woi_un.png"))
+            self.all_hints.append(HoverHint(self.username_btn, "Inserts {User_Name} placeholder", os.path.join(os.getcwd(), "bin", "woi_un.png")))
 
             self.custom1_btn = ctk.CTkButton(row1_fmt_frame, text="Custom 1", command=lambda: self.insert_placeholder("{Custom1}"), **placeholder_btn_style)
             self.custom1_btn.grid(row=0, column=1, padx=5, pady=0, sticky="ew")
-            HoverHint(self.custom1_btn, "Inserts {Custom1} placeholder (from optional import column)", os.path.join(os.getcwd(), "bin", "woi_un.png"))
-
+            self.all_hints.append(HoverHint(self.custom1_btn, "Inserts {Custom1} placeholder (from optional import column)", os.path.join(os.getcwd(), "bin", "woi_un.png")))
             self.custom2_btn = ctk.CTkButton(row1_fmt_frame, text="Custom 2", command=lambda: self.insert_placeholder("{Custom2}"), **placeholder_btn_style)
             self.custom2_btn.grid(row=0, column=2, padx=5, pady=0, sticky="ew")
-            HoverHint(self.custom2_btn, "Inserts {Custom2} placeholder (from optional import column)", os.path.join(os.getcwd(), "bin", "woi_un.png"))
+            self.all_hints.append(HoverHint(self.custom2_btn, "Inserts {Custom2} placeholder (from optional import column)", os.path.join(os.getcwd(), "bin", "woi_un.png")))
+
 
             # --- Message Area ---
-            ctk.CTkLabel(parent, text="Message:", font=("Arial", 18, "bold")).pack(anchor="w", padx=10, pady=(10, 5)) # Increased top padding
+            msg_label = ctk.CTkLabel(parent, text="Message:", font=("Arial", 18, "bold"))
+            msg_label.grid(row=2, column=0, sticky="w", padx=10, pady=(10, 5)) # Use grid
+
+            # Get theme-aware color for the "invisible" border
+            mode = ctk.get_appearance_mode().lower()
+            # PARENT frame uses the main FG color
+            text_frame_bg = DARK_FG if mode == "dark" else LIGHT_FG
+            # CHILD text box uses the INNER color
+            inner_bg = DARK_INNER if mode == "dark" else LIGHT_INNER
 
             self.text_area_frame = ctk.CTkFrame(
                 parent, 
-                corner_radius=20,  # This will give the frame rounded corners
-                fg_color=DARK_INNER,  # Ensure the color is set to something suitable
-                border_width=0  # No border around the frame
+                corner_radius=24, # Outer frame has a 24px radius
+                fg_color=text_frame_bg, # Use the main FG color
+                border_width=0  # <-- CHANGED: We will animate fg_color instead
             )
-            self.text_area_frame.pack(fill="both", expand=True, padx=5, pady=(0,5))  # Adding padding if needed
+            self.text_area_frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=(0,10)) # Use grid
+
+            # --- THIS IS THE CORNER FIX: Use .grid() to "inset" the text box ---
+            # Configure the grid *inside* the text_area_frame
+            self.text_area_frame.grid_rowconfigure(0, weight=1)
+            self.text_area_frame.grid_columnconfigure(0, weight=1)
 
             self.message_text = ctk.CTkTextbox(
-                self.text_area_frame,
+                self.text_area_frame, # Child of the animating frame
                 height=100,
-                corner_radius=10, # Rounded corners inherent
-                fg_color=DARK_INNER,
+                corner_radius=16, # Inner radius = 24 (parent) - 8 (border)
+                fg_color=inner_bg, # Use the INNER color
                 border_width=0,
-                padx=10, # Increased padding inside textbox
-                pady=10, # Increased padding inside textbox
-                font=("Arial", 16) # Bigger font
-            ) # Theme
-            self.message_text.pack(fill="both", expand=True, padx=0, pady=0)
+                padx=15, # INTERNAL text padding
+                pady=15, # INTERNAL text padding
+                font=("Arial", 16) 
+            ) 
+            # --- End of .grid() fix ---
+
+            self.message_text.grid(row=0, column=0, sticky="nsew", padx=12, pady=12) 
+            # --- End of .grid() fix ---
+
             self.message_text.bind("<Control-z>", self.undo)
             self.message_text.bind("<Control-y>", self.redo)
             self.message_text.bind("<KeyRelease>", self.save_state)
             self.message_text.bind("<Button-3>", self.show_context_menu)
+            # ... (inside create_message_area)
+            self.message_text.bind("<Button-3>", self.show_context_menu)
+            self.message_text.bind("<Control-f>", self.open_find_popup) # <-- ADD THIS LINE
 
+            self.context_menu = tk.Menu(self.message_text, tearoff=0)
+            # ... (rest of the method) ...
             self.context_menu = tk.Menu(self.message_text, tearoff=0)
             self.context_menu.add_command(label="Bold", command=lambda: self.apply_formatting("*"))
             self.context_menu.add_command(label="Italic", command=lambda: self.apply_formatting("_"))
@@ -2382,32 +4249,31 @@ class WabulkXpressApp(ctk.CTk):
                     print(f"Error loading AI icon for button: {e}")
 
             mode = ctk.get_appearance_mode().lower()
-            # The button's background (fg_color) should match its parent (text_area_frame)
-            ai_bg_color = DARK_INNER if mode == "dark" else LIGHT_INNER
-            # The button's hover color should match the main frames
-            ai_hover_color = DARK_FG if mode == "dark" else LIGHT_FG
+            # The button's background (fg_color) should match the main frames (DIFFERENT from text box)
+            ai_bg_color = DARK_FG if mode == "dark" else LIGHT_FG
+            # The button's hover color should be a slightly different shade
+            ai_hover_color = "#333333" if mode == "dark" else "#E0E0E0"
 
             self.ai_button = ctk.CTkButton(
-                self.text_area_frame,  # This makes sure it's inside the text area frame
+                self.message_text,  # Place button inside message_text
                 text="",
                 image=ai_icon,
-                fg_color=ai_bg_color,  # Match parent frame
-                hover_color=ai_hover_color, # Set initial hover color
-                corner_radius=20,  # Rounded corners for the button itself
+                fg_color=ai_bg_color,  # Use new base color
+                hover_color=ai_hover_color, # Use new hover color
+                corner_radius=20,  
                 width=50,
                 height=50,
                 command=self.show_ai_popup
             )
-            self.ai_button.place(in_=self.text_area_frame, relx=1.0, rely=1.0, x=-15, y=-15, anchor="se")
-
-            # Position relative to the text_area_frame for better anchoring
-            self.ai_button.place(in_=self.text_area_frame, relx=1.0, rely=1.0, x=-15, y=-15, anchor="se")
-            self.ai_button.bind("<ButtonPress>", lambda e: self.ai_button.configure(width=45, height=45))
-            self.ai_button.bind("<ButtonRelease>", lambda e: self.ai_button.configure(width=50, height=50))
+            self.ai_button.place(relx=1.0, rely=1.0, x=-15, y=-15, anchor="se") # Place in corner of text box
+            # Set initial bindings for the AI button click effect
+            ai_press_color = "#555555" if mode == "dark" else "#CFCFCF" 
+            self.ai_button.bind("<ButtonPress-1>", lambda e, c=ai_press_color: self.ai_button.configure(fg_color=c))
+            self.ai_button.bind("<ButtonRelease-1>", lambda e, c=ai_hover_color: self.ai_button.configure(fg_color=c))
 
             # --- Delay Frame ---
             delay_frame = ctk.CTkFrame(parent, corner_radius=10, fg_color="transparent") # Theme
-            delay_frame.pack(fill="x", padx=5, pady=(10, 5)) # Increased top padding
+            delay_frame.grid(row=4, column=0, sticky="ew", padx=5, pady=(10, 5)) # Use grid
 
             delay_font = ("Arial", 14) # Increased font size
 
@@ -2421,7 +4287,161 @@ class WabulkXpressApp(ctk.CTk):
             self.max_delay_entry.insert(0, str(DEFAULT_MAX_DELAY))
             self.max_delay_entry.pack(side="left", padx=5)
 
-        
+    def _create_custom_title_bar(self):
+        """Creates a custom title bar with icon, drag, close, minimize, maximize."""
+        mode = ctk.get_appearance_mode().lower()
+        self._set_title_bar_colors(mode) # Call helper to set colors
+
+        self.title_bar = ctk.CTkFrame(self.master, height=35, corner_radius=10, fg_color=self.title_bar_color)
+        self.title_bar.pack(side="top", fill="x")
+        self.title_bar.pack_propagate(False) # Prevent frame from shrinking to content
+
+        # --- App Icon ---
+        try:
+            # Use the same icon as the window
+            icon_path = TITLE_ICON_PATH
+            if os.path.exists(icon_path):
+                img = Image.open(icon_path).resize((18, 18), Image.Resampling.LANCZOS)
+                self.app_icon_image = ctk.CTkImage(light_image=img, dark_image=img, size=(18, 18))
+                self.icon_label = ctk.CTkLabel(self.title_bar, image=self.app_icon_image, text="", fg_color="transparent")
+                self.icon_label.pack(side="left", padx=(8, 5), pady=5)
+            else:
+                self.icon_label = None # No icon label if file missing
+        except Exception as e:
+            print(f"Error loading title bar icon: {e}")
+            self.icon_label = None
+
+        # --- Title Label ---
+        self.title_label = ctk.CTkLabel(self.title_bar, text="WabulkXpress", font=("Segoe UI", 11), text_color=self.title_text_color, anchor="w")
+        self.title_label.pack(side="left", fill="x", expand=True, pady=5)
+
+        # --- Window Control Buttons (Right to Left order) ---
+        # Close Button (Larger Hitbox)
+        self.close_button = ctk.CTkButton(
+            self.title_bar, text="✕", width=45, height=35, corner_radius=0,
+            fg_color="transparent", hover_color=self.close_hover_color,
+            text_color=self.title_text_color, font=("Segoe UI Symbol", 12),
+            command=self.on_close
+        )
+        self.close_button.pack(side="right")
+        # Change hover text color specifically for close button
+        self.close_button.bind("<Enter>", lambda e: self.close_button.configure(text_color="white"))
+        self.close_button.bind("<Leave>", lambda e: self.close_button.configure(text_color=self.title_text_color))
+
+        # Maximize/Restore Button
+        # We'll use ☐ initially, and change text in the toggle function
+        self._is_maximized = False
+        self._restore_geometry = ""
+        self.maximize_button = ctk.CTkButton(
+            self.title_bar, text="☐", width=45, height=35, corner_radius=0,
+            fg_color="transparent", hover_color=self.button_hover_color,
+            text_color=self.title_text_color, font=("Segoe UI Symbol", 11), # Slightly smaller symbol
+            command=self._toggle_maximize
+        )
+        self.maximize_button.pack(side="right")
+
+        # Minimize Button
+        self.minimize_button = ctk.CTkButton(
+            self.title_bar, text="＿", width=45, height=35, corner_radius=0,
+            fg_color="transparent", hover_color=self.button_hover_color,
+            text_color=self.title_text_color, font=("Segoe UI Symbol", 11, "bold"), # Bold underscore
+            command=self._minimize_window
+        )
+        self.minimize_button.pack(side="right")
+
+
+        # --- Drag Functionality ---
+        self._offset_x = 0
+        self._offset_y = 0
+
+        # Bind dragging to title bar and title label
+        widgets_to_bind = [self.title_bar, self.title_label]
+        if self.icon_label: # Bind icon only if it exists
+             widgets_to_bind.append(self.icon_label)
+
+        for widget in widgets_to_bind:
+             if widget: # Ensure widget exists before binding
+                widget.bind("<ButtonPress-1>", self._start_move)
+                widget.bind("<ButtonRelease-1>", self._stop_move)
+                widget.bind("<B1-Motion>", self._do_move)
+                widget.bind("<Double-Button-1>", self._toggle_maximize) # Double-click to maximize/restore
+
+    # --- Methods for Window Control ---
+    def _minimize_window(self):
+        """Minimizes the main window."""
+        self.master.iconify()
+
+    def _toggle_maximize(self, event=None):
+        """Maximizes or restores the main window."""
+        if self._is_maximized:
+            # Restore
+            self.master.geometry(self._restore_geometry)
+            self.maximize_button.configure(text="☐") # Restore symbol
+            self._is_maximized = False
+        else:
+            # Maximize
+            self._restore_geometry = self.master.geometry() # Save current size/pos
+            # Get screen dimensions WITHOUT taskbar
+            screen_width = self.master.winfo_screenwidth()
+            screen_height = self.master.winfo_screenheight()
+            # A common approximation for taskbar height is ~40px, adjust if needed
+            # More robust methods exist but are complex (using win32api)
+            taskbar_height = 40
+            max_height = screen_height - taskbar_height
+            self.master.geometry(f"{screen_width}x{max_height}+0+0")
+            self.maximize_button.configure(text="❐") # Maximize symbol (may vary by font)
+            self._is_maximized = True
+
+    # --- Methods for Dragging (Unchanged but needed) ---
+    def _start_move(self, event):
+        # Don't start drag if window is maximized
+        if self._is_maximized:
+            return
+        self._offset_x = event.x
+        self._offset_y = event.y
+
+    def _stop_move(self, event):
+        self._offset_x = 0
+        self._offset_y = 0
+
+    def _do_move(self, event):
+        # Don't move if window is maximized
+        if self._is_maximized:
+            return
+        # Calculate new window position
+        new_x = self.master.winfo_x() + event.x - self._offset_x
+        new_y = self.master.winfo_y() + event.y - self._offset_y
+        self.master.geometry(f"+{new_x}+{new_y}")
+
+
+    # --- Helper to set colors based on theme ---
+    def _set_title_bar_colors(self, mode):
+        if mode == "dark":
+            self.title_bar_color = DARK_FG # Use Frame Background color
+            self.title_text_color = "#FFFFFF"
+            self.button_hover_color = DARK_INNER # Use Inner Element color for hover
+            self.close_hover_color = "#C42B1C" # Standard Windows dark close hover
+        else:
+            self.title_bar_color = LIGHT_FG
+            self.title_text_color = "#000000"
+            self.button_hover_color = LIGHT_INNER
+            self.close_hover_color = "#E81123" # Standard Windows light close hover
+
+    # --- Methods for Dragging ---
+    def _start_move(self, event):
+        self._offset_x = event.x
+        self._offset_y = event.y
+
+    def _stop_move(self, event):
+        self._offset_x = 0
+        self._offset_y = 0
+
+    def _do_move(self, event):
+        # Calculate new window position
+        new_x = self.master.winfo_x() + event.x - self._offset_x
+        new_y = self.master.winfo_y() + event.y - self._offset_y
+        self.master.geometry(f"+{new_x}+{new_y}")
+             
     def show_context_menu(self, event):
         try:
             # Update menu theme before showing
@@ -2545,27 +4565,7 @@ class WabulkXpressApp(ctk.CTk):
         self.custom_image_enabled = True
         self.last_action = "custom"
         
-        # --- New Logic ---
-        # 1. Update this button to "Deselect" state (red)
-        self.custom_image_btn.configure(
-            text="Deselect Custom",
-            command=self.deselect_custom_images,  # Point to the new deselect method
-            fg_color="#FF4040", # Red color
-            hover_color="#D32F2F"
-        )
-        
-        # 2. Deselect the single attachment if one was active
-        if self.attachments.get("Any"):
-            self.attachments["Any"] = None
-            self.log_live("ℹ️ Single attachment deselected (Custom Images enabled).")
-            # Reset the *other* button
-            self.attachment_btn.configure(
-                text="Select Attachment",
-                fg_color="green",
-                hover_color="#45A049"
-            )
-        # --- End New Logic ---
-
+        # --- This is the FIRST and ONLY call ---
         CustomImageWindow(self, self.excel_data)
         
         # --- New Logic ---
@@ -2589,8 +4589,7 @@ class WabulkXpressApp(ctk.CTk):
             )
         # --- End New Logic ---
 
-        CustomImageWindow(self, self.excel_data)
-
+        # (The duplicate call at the end has been removed)
 
     def deselect_custom_images(self):
         """Deselects custom images, cleans the output folder, and resets the button."""
@@ -2634,6 +4633,12 @@ class WabulkXpressApp(ctk.CTk):
         
         country_codes = ["+91", "None", "+1", "+44", "+61", "+81", "+49", "+33", "+86", "+7"]
         self.country_code_var = ctk.StringVar(value="+91")
+        # Get theme colors for the dropdown
+        mode = ctk.get_appearance_mode().lower()
+        # Use DARK_BG for pitch black popup
+        inner_color = DARK_INNER if mode == "dark" else LIGHT_INNER
+        text_color = "white" if mode == "dark" else "black"
+
         self.country_code_dropdown = ctk.CTkOptionMenu(
             top_frame, 
             values=country_codes, 
@@ -2641,12 +4646,17 @@ class WabulkXpressApp(ctk.CTk):
             font=("Arial", 16), # Bigger font
             dropdown_font=("Arial", 16), # Bigger font
             height=40,
-            corner_radius=10,
-            fg_color="green",           # Main button background
-            button_color="#45A049",     # Color for the arrow button
-            button_hover_color="#3E8E41"  # Darker green for arrow hover
+            corner_radius=100,                # <-- CHANGED: Full rounded edge
+            fg_color="green",                 # Main button background
+            button_color="#45A049",           # Color for the arrow button
+            button_hover_color="#3E8E41",     # Darker green for arrow hover
+            # --- UPDATED LINES ---
+            dropdown_fg_color=DARK_BG,        # <-- CHANGED: Pitch black background
+            dropdown_hover_color=inner_color, # Use the inner color for hover
+            dropdown_text_color=text_color,   # Set appropriate text color
         )
-        self.country_code_dropdown.pack(side="left", padx=5, pady=5)
+        # Added more space with padx=10
+        self.country_code_dropdown.pack(side="left", padx=10, pady=5)
         
         self.import_db_btn = ctk.CTkButton(
             top_frame, 
@@ -2659,17 +4669,101 @@ class WabulkXpressApp(ctk.CTk):
             hover_color="#45A049"
         )
         self.import_db_btn.pack(side="left", padx=5, pady=5)
+        # --- ADD THIS LINE ---
+        self.all_hints.append(HoverHint(self.import_db_btn, 
+                  "Import contacts from Excel or CSV files. You can map columns for phone, name, and two custom fields.", 
+                  os.path.join(BIN_FOLDER, "hint_import.png")))
         
+        # --- NEW FIND BUTTON ---
+        self.find_btn = ctk.CTkButton(
+            top_frame,
+            text="Find",
+            corner_radius=10,
+            command=self.open_excel_find_popup,
+            font=("Arial", 16, "bold"),
+            height=40,
+            width=80, # Smaller width
+            fg_color="green", # <-- CHANGED
+            hover_color="#45A049" # <-- CHANGED
+        )
+        self.find_btn.pack(side="left", padx=5, pady=5)
+        # --- END NEW BUTTON ---
         mode = ctk.get_appearance_mode().lower()
         excel_bg = DARK_FG if mode == "dark" else LIGHT_FG
         
         self.excel_table = ExcelTable(parent, main_app=self, fg_color=excel_bg)
         self.excel_table.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
+        # --- ADD THIS BINDING ---
+        # Bind to the scrollable frame itself
+        self.excel_table.bind("<Control-f>", self.open_excel_find_popup)
+
+
+
+    def parse_row_ranges(self, range_str):
+        """Parses a row range string (e.g., '2-10, 15, 21-30') into a set of integers."""
+        if not range_str:
+            return None # No range specified, process all
+            
+        selected_rows = set()
+        try:
+            parts = range_str.split(',')
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                if '-' in part:
+                    # It's a range
+                    start, end = part.split('-')
+                    start_num = int(start.strip())
+                    end_num = int(end.strip())
+                    if start_num <= 1 or end_num < start_num: # Rows start at 2 (after header)
+                        raise ValueError(f"Invalid range '{part}'. Rows must be > 1.")
+                    selected_rows.update(range(start_num, end_num + 1))
+                else:
+                    # It's a single number
+                    num = int(part.strip())
+                    if num <= 1:
+                         raise ValueError(f"Invalid row number '{part}'. Rows must be > 1.")
+                    selected_rows.add(num)
+            
+            if not selected_rows:
+                return None # Empty range string
+                
+            return selected_rows
+        except Exception as e:
+            self.log_live(f"⚠️ Invalid row range '{range_str}': {e}. Processing all rows.")
+            messagebox.showwarning("Range Error", f"Invalid row range: {e}\nProcessing all rows instead.")
+            return None
+        
+
+        
     def open_import_popup(self):
-        # Check if data already exists
+        """
+        Launches the Phase 1 Import Popup.
+        The callback 'self.open_mapping_popup' will be triggered on success.
+        """
+        NewImportPopup(self, on_success_callback=self.open_mapping_popup)
+    
+
+    def open_mapping_popup(self, file_path=None, csv_data=None):
+        """
+        Asks for merge-mode if needed, then opens the mapping popup (Phase 2).
+        This is called by NewImportPopup.
+        """
+        
+        def _launch_mapper_with_mode(merge_mode):
+            # This is the final step, launches Phase 2
+            MappingPopup(
+                self, 
+                on_import_callback=self.load_excel_data, 
+                merge_mode=merge_mode, 
+                file_path=file_path, 
+                csv_data=csv_data
+            )
+
         if self.excel_data:
-            # Create a small popup to ask for Merge or Replace
+            # Data exists, ask user to Merge or Replace
             popup = ctk.CTkToplevel(self)
             popup.title("Import Mode")
             popup.geometry("350x150")
@@ -2679,7 +4773,6 @@ class WabulkXpressApp(ctk.CTk):
             
             mode = ctk.get_appearance_mode().lower()
             bg_color = DARK_BG if mode == "dark" else LIGHT_BG
-            fg_color = DARK_FG if mode == "dark" else LIGHT_FG
             
             popup.configure(fg_color=bg_color)
             
@@ -2690,14 +4783,14 @@ class WabulkXpressApp(ctk.CTk):
             btn_frame.pack(pady=10, fill="x", expand=True)
             btn_frame.columnconfigure((0,1), weight=1)
 
-            def launch_import(merge_mode):
+            def on_select_mode(merge_mode):
                 popup.destroy()
-                ImportDatabasePopup(self, self.load_excel_data, merge_mode=merge_mode)
+                _launch_mapper_with_mode(merge_mode)
 
             merge_btn = ctk.CTkButton(
                 btn_frame, 
                 text="Merge\n(Add to existing)", 
-                command=lambda: launch_import(merge_mode=True),
+                command=lambda: on_select_mode(merge_mode=True),
                 fg_color="green",
                 hover_color="#45A049"
             )
@@ -2706,17 +4799,23 @@ class WabulkXpressApp(ctk.CTk):
             replace_btn = ctk.CTkButton(
                 btn_frame, 
                 text="Replace\n(Clear old data)", 
-                command=lambda: launch_import(merge_mode=False),
+                command=lambda: on_select_mode(merge_mode=False),
                 fg_color="#D32F2F", # Red color
                 hover_color="#B71C1C"
             )
             replace_btn.grid(row=0, column=1, padx=10, pady=5)
             
         else:
-            # No data exists, just open the import window in "replace" mode (merge_mode=False)
-            ImportDatabasePopup(self, self.load_excel_data, merge_mode=False)
-        
-    def load_excel_data(self, path, phone_col, name_col, custom1_col, custom2_col, merge_mode):
+            # No existing data, just launch mapper in "replace" mode
+            _launch_mapper_with_mode(merge_mode=False)
+
+
+
+    def load_excel_data(self, file_path, phone_col, name_col, custom1_col, custom2_col, merge_mode, row_range_str=None, csv_data=None):
+        """
+        Loads data from file or CSV string, applies column and row mapping, 
+        and updates the main Excel table.
+        """
         try:
             prog = ProgressPopup(self, "Loading Data", total=1)
             prog.geometry(
@@ -2726,118 +4825,193 @@ class WabulkXpressApp(ctk.CTk):
             
             def perform_loading():
                 new_data = []
-                
+                parsed_ranges = self.parse_row_ranges(row_range_str) # Parse ranges
+                is_csv = (csv_data is not None) or (file_path and file_path.endswith('.csv'))
+
                 # Helper to convert col letter to index (A=0, B=1, ...)
                 def col_to_index(col_letter):
-                    if not col_letter or not col_letter.isalpha():
+                    if not col_letter or not col_letter.isalpha() or len(col_letter) > 1:
                         return -1
                     return ord(col_letter.upper()) - 65
 
-                phone_idx = col_to_index(phone_col)
-                name_idx = col_to_index(name_col)
-                custom1_idx = col_to_index(custom1_col)
-                custom2_idx = col_to_index(custom2_col)
+                # --- Column Indices ---
+                phone_idx = -1
+                name_idx = -1
+                custom1_idx = -1
+                custom2_idx = -1
+                
+                header = [] # To store header row
 
-                if path.endswith('.xlsx') or path.endswith('.xls'):
-                    wb = openpyxl.load_workbook(path, data_only=True) # data_only=True to get values, not formulas
-                    sheet = wb.active
-                    
-                    max_col_index = sheet.max_column - 1 # 0-based index
-                    
-                    # Validate required phone index
-                    if phone_idx > max_col_index or phone_idx == -1:
-                        self.log_live(f"❌ Error: Phone column '{phone_col}' not found in Excel.")
-                        self.after(0, lambda: prog.close())
-                        messagebox.showerror("Import Error", f"Phone column '{phone_col}' (Index {phone_idx}) is out of range. Max column index is {max_col_index}.")
-                        return
-                        
-                    for row in sheet.iter_rows(min_row=2, values_only=True):
-                        entry = {}
+                # --- Data Loading Logic ---
+                try:
+                    if csv_data: # Handle in-memory CSV data
+                        f = StringIO(csv_data)
                         try:
-                            phone_val = row[phone_idx] if len(row) > phone_idx else ""
-                            phone = str(phone_val).strip() if phone_val is not None else ""
+                            dialect = csv.Sniffer().sniff(f.read(2048))
+                        except csv.Error:
+                            f.seek(0)
+                            dialect = 'excel' # Fallback
+                        f.seek(0)
+                        reader = csv.reader(f, dialect)
+                        
+                        header = next(reader) # Read header row
+                        
+                        # Find indices by name
+                        try: phone_idx = header.index(phone_col)
+                        except ValueError:
+                            self.log_live(f"❌ Error: Phone column '{phone_col}' not found in CSV header.")
+                            self.after(0, lambda: prog.close())
+                            messagebox.showerror("Import Error", f"Phone column '{phone_col}' not found in CSV header: {header}")
+                            return
+                        try: name_idx = header.index(name_col)
+                        except ValueError: name_idx = -1
+                        try: custom1_idx = header.index(custom1_col)
+                        except ValueError: custom1_idx = -1
+                        try: custom2_idx = header.index(custom2_col)
+                        except ValueError: custom2_idx = -1
+                        
+                        current_row_num = 2 # Start from 2 (row 1 was header)
+                        for row in reader:
+                            if parsed_ranges and current_row_num not in parsed_ranges:
+                                current_row_num += 1
+                                continue # Skip row if not in range
                             
-                            if not phone: # Skip row if phone is empty
-                                continue
-                                
-                            entry["phone"] = phone
-                            
-                            if name_idx != -1 and len(row) > name_idx:
-                                name_val = row[name_idx]
-                                entry["name"] = str(name_val).strip() if name_val is not None else ""
-                            
-                            if custom1_idx != -1 and len(row) > custom1_idx:
-                                c1_val = row[custom1_idx]
-                                entry["custom1"] = str(c1_val).strip() if c1_val is not None else ""
-                                
-                            if custom2_idx != -1 and len(row) > custom2_idx:
-                                c2_val = row[custom2_idx]
-                                entry["custom2"] = str(c2_val).strip() if c2_val is not None else ""
-                            
-                            new_data.append(entry)
-                            
-                        except Exception as e:
-                            self.log_live(f"Error reading Excel row: {e}")
-                            
-                elif path.endswith('.csv'):
-                    try:
-                        with open(path, newline='', encoding='utf-8-sig') as csvfile: # Use utf-8-sig to handle BOM
-                            # Sniff dialect
-                            dialect = csv.Sniffer().sniff(csvfile.read(1024))
-                            csvfile.seek(0) 
+                            entry = {}
+                            try:
+                                phone = row[phone_idx].strip() if len(row) > phone_idx else ""
+                                if not phone:
+                                    current_row_num += 1
+                                    continue
+                                entry["phone"] = phone
+                                if name_idx != -1 and len(row) > name_idx:
+                                    entry["name"] = row[name_idx].strip()
+                                if custom1_idx != -1 and len(row) > custom1_idx:
+                                    entry["custom1"] = row[custom1_idx].strip()
+                                if custom2_idx != -1 and len(row) > custom2_idx:
+                                    entry["custom2"] = row[custom2_idx].strip()
+                                new_data.append(entry)
+                            except Exception as e:
+                                self.log_live(f"Error reading CSV row {current_row_num}: {e}")
+                            current_row_num += 1
+                    
+                    elif file_path.endswith('.csv'): # Handle CSV file
+                        with open(file_path, newline='', encoding='utf-8-sig') as csvfile:
+                            try:
+                                dialect = csv.Sniffer().sniff(csvfile.read(2048))
+                            except csv.Error:
+                                csvfile.seek(0)
+                                dialect = 'excel' # Fallback
+                            csvfile.seek(0)
                             reader = csv.reader(csvfile, dialect)
                             
                             header = next(reader) # Read header row
                             
-                            # --- CSV Column Name Matching ---
-                            # Re-find indices based on header names (more robust for CSV)
-                            try:
-                                phone_idx_csv = header.index(phone_col)
+                            # Find indices by name
+                            try: phone_idx = header.index(phone_col)
                             except ValueError:
                                 self.log_live(f"❌ Error: Phone column '{phone_col}' not found in CSV header.")
                                 self.after(0, lambda: prog.close())
                                 messagebox.showerror("Import Error", f"Phone column '{phone_col}' not found in CSV header: {header}")
                                 return
-
-                            try: name_idx_csv = header.index(name_col)
-                            except ValueError: name_idx_csv = -1
+                            try: name_idx = header.index(name_col)
+                            except ValueError: name_idx = -1
+                            try: custom1_idx = header.index(custom1_col)
+                            except ValueError: custom1_idx = -1
+                            try: custom2_idx = header.index(custom2_col)
+                            except ValueError: custom2_idx = -1
                             
-                            try: custom1_idx_csv = header.index(custom1_col)
-                            except ValueError: custom1_idx_csv = -1
-
-                            try: custom2_idx_csv = header.index(custom2_col)
-                            except ValueError: custom2_idx_csv = -1
-                            # ---
-                            
+                            current_row_num = 2 # Start from 2
                             for row in reader:
+                                if parsed_ranges and current_row_num not in parsed_ranges:
+                                    current_row_num += 1
+                                    continue # Skip row
+                                
                                 entry = {}
                                 try:
-                                    phone = row[phone_idx_csv].strip() if len(row) > phone_idx_csv else ""
-                                    
+                                    phone = row[phone_idx].strip() if len(row) > phone_idx else ""
                                     if not phone:
+                                        current_row_num += 1
                                         continue
-                                        
                                     entry["phone"] = phone
-                                    
-                                    if name_idx_csv != -1 and len(row) > name_idx_csv:
-                                        entry["name"] = row[name_idx_csv].strip()
-                                    
-                                    if custom1_idx_csv != -1 and len(row) > custom1_idx_csv:
-                                        entry["custom1"] = row[custom1_idx_csv].strip()
-                                        
-                                    if custom2_idx_csv != -1 and len(row) > custom2_idx_csv:
-                                        entry["custom2"] = row[custom2_idx_csv].strip()
-                                    
+                                    if name_idx != -1 and len(row) > name_idx:
+                                        entry["name"] = row[name_idx].strip()
+                                    if custom1_idx != -1 and len(row) > custom1_idx:
+                                        entry["custom1"] = row[custom1_idx].strip()
+                                    if custom2_idx != -1 and len(row) > custom2_idx:
+                                        entry["custom2"] = row[custom2_idx].strip()
                                     new_data.append(entry)
-                                    
                                 except Exception as e:
-                                    self.log_live(f"Error reading CSV row: {e}")
-                                    
-                    except Exception as e:
-                         self.log_live(f"Error opening/reading CSV file: {e}")
-                         messagebox.showerror("File Error", f"Could not read CSV file: {e}")
-                         self.after(0, lambda: prog.close())
-                         return
+                                    self.log_live(f"Error reading CSV row {current_row_num}: {e}")
+                                current_row_num += 1
+
+                    elif file_path.endswith(('.xlsx', '.xls')): # Handle Excel file
+                        wb = openpyxl.load_workbook(file_path, data_only=True)
+                        sheet = wb.active
+                        
+                        # Get header
+                        header_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), [])
+                        header = [str(cell) if cell is not None else "" for cell in header_row]
+                        
+                        # --- Determine indices ---
+                        # Try by letter first
+                        phone_idx = col_to_index(phone_col)
+                        name_idx = col_to_index(name_col)
+                        custom1_idx = col_to_index(custom1_col)
+                        custom2_idx = col_to_index(custom2_col)
+                        
+                        # If not a valid letter, try by name
+                        if phone_idx == -1:
+                            try: phone_idx = header.index(phone_col)
+                            except ValueError: phone_idx = -1 # Final check
+                        if name_idx == -1 and name_col:
+                            try: name_idx = header.index(name_col)
+                            except ValueError: name_idx = -1
+                        if custom1_idx == -1 and custom1_col:
+                            try: custom1_idx = header.index(custom1_col)
+                            except ValueError: custom1_idx = -1
+                        if custom2_idx == -1 and custom2_col:
+                            try: custom2_idx = header.index(custom2_col)
+                            except ValueError: custom2_idx = -1
+                        
+                        if phone_idx == -1:
+                            self.log_live(f"❌ Error: Phone column '{phone_col}' not found in Excel.")
+                            self.after(0, lambda: prog.close())
+                            messagebox.showerror("Import Error", f"Phone column '{phone_col}' not found in Excel header: {header}")
+                            return
+                        
+                        current_row_num = 2 # Start from 2
+                        for row in sheet.iter_rows(min_row=2, values_only=True):
+                            if parsed_ranges and current_row_num not in parsed_ranges:
+                                current_row_num += 1
+                                continue # Skip row
+                            
+                            entry = {}
+                            try:
+                                phone_val = row[phone_idx] if len(row) > phone_idx else ""
+                                phone = str(phone_val).strip() if phone_val is not None else ""
+                                if not phone:
+                                    current_row_num += 1
+                                    continue
+                                entry["phone"] = phone
+                                if name_idx != -1 and len(row) > name_idx:
+                                    name_val = row[name_idx]
+                                    entry["name"] = str(name_val).strip() if name_val is not None else ""
+                                if custom1_idx != -1 and len(row) > custom1_idx:
+                                    c1_val = row[custom1_idx]
+                                    entry["custom1"] = str(c1_val).strip() if c1_val is not None else ""
+                                if custom2_idx != -1 and len(row) > custom2_idx:
+                                    c2_val = row[custom2_idx]
+                                    entry["custom2"] = str(c2_val).strip() if c2_val is not None else ""
+                                new_data.append(entry)
+                            except Exception as e:
+                                self.log_live(f"Error reading Excel row {current_row_num}: {e}")
+                            current_row_num += 1
+                
+                except Exception as e:
+                     self.log_live(f"Error opening/reading file: {e}")
+                     messagebox.showerror("File Error", f"Could not read file: {e}")
+                     self.after(0, lambda: prog.close())
+                     return
 
                 # --- Handle Merge/Replace ---
                 if merge_mode:
@@ -2845,7 +5019,8 @@ class WabulkXpressApp(ctk.CTk):
                     self.log_live(f"✅ Merged {len(new_data)} new contacts. Total: {len(self.excel_data)}")
                 else:
                     self.excel_data = new_data
-                    self.log_live(f"✅ Replaced with {len(new_data)} contacts from {os.path.basename(path)}")
+                    log_source = f"Google Sheet" if csv_data else f"{os.path.basename(file_path)}"
+                    self.log_live(f"✅ Imported {len(new_data)} contacts from {log_source}")
 
                 # --- Load data into the dynamic table ---
                 self.after(0, lambda: self.excel_table.load_data(self.excel_data))
@@ -2856,7 +5031,9 @@ class WabulkXpressApp(ctk.CTk):
         except Exception as e:
             self.log_live(f"Error loading file: {e}")
             messagebox.showerror("Error", f"Failed to load file: {e}")
-            
+
+
+
     def launch_whatsapp_beta(self):
         # --- New Logic to Clear Session ---
         try:
@@ -2893,18 +5070,28 @@ class WabulkXpressApp(ctk.CTk):
             self.stop_sending()
             
     def start_sending(self):
-        self.sending = True
-        self.start_stop_button.configure(text="Stop", fg_color="#FF4040")
+        # --- NEW CHECKS ---
+        if not self.is_logged_in():
+            return # Stop if not logged in
+
         data = self.excel_table.get_data()
         if not data:
-            messagebox.showerror("Error", "No phone numbers loaded.")
-            self.stop_sending()
-            return
+            messagebox.showerror("Error", "No phone numbers loaded. Please add at least one contact.")
+            return # Stop if no data
+
         msg = self.message_text.get("0.0", "end-1c").strip()
-        if not msg and not self.custom_image_enabled and not ("Any" in self.attachments and self.attachments["Any"]):
-            messagebox.showerror("Error", "No message text provided and no attachment selected.")
-            self.stop_sending()
-            return
+        attachment_present = "Any" in self.attachments and self.attachments["Any"]
+        
+        # NEW CHECK: Stop if the message box is empty, regardless of attachments.
+        if not msg:
+            messagebox.showerror("Error", "Cannot send with an empty message. Please type a message to continue.")
+            self.stop_sending() # Reset button
+            return # Stop if no content
+        # --- END NEW CHECKS ---
+
+        self.sending = True
+        self.start_stop_button.configure(text="Stop", fg_color="#FF4040")
+        
         attachment_path = self.attachments["Any"] if "Any" in self.attachments else None
         
         # --- Get Delay Settings ---
@@ -2963,49 +5150,53 @@ class WabulkXpressApp(ctk.CTk):
             return
 
         def schedule_and_send():
-            # Added Debug Logs
-            print(f"DEBUG: Schedule thread started. Target time: {self.schedule_time}, Sending flag: {self.sending}")
+            # --- *** NEW SCHEDULER LOGIC V3 *** ---
+            # 1. Atomically get the schedule time and clear it from the class
+            # This prevents race conditions with old threads or new schedules
+            target_time = self.schedule_time
+            self.schedule_time = None 
+            # --- *** END NEW V3 LOGIC *** ---
 
-            if self.schedule_time:
-                print(f"DEBUG: Entering wait loop. Now: {datetime.now()}, Target: {self.schedule_time}")
-                # Loop while current time is less than target AND sending flag is True
-                while self.sending:
-                    now = datetime.now()
-                    if now >= self.schedule_time:
-                        print(f"DEBUG: Target time reached or passed. Now: {now}, Target: {self.schedule_time}")
-                        break # Exit the loop, time has come
+            print(f"DEBUG: Schedule thread started. Target time: {target_time}, Sending flag: {self.sending}")
 
-                    remaining = (self.schedule_time - now).total_seconds()
-                    # Log more frequently when close
-                    log_interval = 10 if remaining > 60 else 5
-                    if int(remaining) % log_interval == 0:
-                        self.log_live(f"⏳ Time left until scheduled start: {int(remaining)} seconds")
+            # --- *** NEW SCHEDULER LOGIC *** ---
+            if target_time: # Use the local variable
+                now = datetime.now()
+                wait_seconds = (target_time - now).total_seconds()
 
-                    # Check every 0.5 seconds for responsiveness
-                    time.sleep(0.5)
+                if wait_seconds > 0:
+                    self.log_live(f"⏳ Waiting... Sending will start in {int(wait_seconds)} seconds at {target_time.strftime('%I:%M %p')}.")
+                    print(f"DEBUG: Entering wait loop for {wait_seconds} seconds. Target: {target_time}")
 
-                print(f"DEBUG: Exited wait loop. Now: {datetime.now()}, Sending flag: {self.sending}")
-
-                # Check *why* the loop exited
-                if not self.sending: # If user clicked "Stop" during the wait
-                    self.log_live("🛑 Schedule cancelled by user.")
-                    self.after(0, self.stop_sending) # Ensure UI updates correctly
-                    print("DEBUG: Sending flag was False after loop.")
-                    return # Stop the function here
-
-                # If the loop exited because time was reached AND sending is still True
-                print("DEBUG: Proceeding to send after schedule wait.")
-                self.log_live("🚀 Scheduled time reached! Starting sending...")
+                    # Sleep in 1-second intervals to keep the 'Stop' button responsive
+                    for i in range(int(wait_seconds)):
+                        if not self.sending: # Check if user clicked Stop
+                            self.log_live("🛑 Schedule cancelled by user during wait.")
+                            print("DEBUG: Sending flag became False during wait loop.")
+                            self.after(0, self.stop_sending) # Reset UI
+                            return # Exit the thread
+                        
+                        time.sleep(1)
+                    
+                    print(f"DEBUG: Wait loop finished. Proceeding to send.")
+                    self.log_live("🚀 Scheduled time reached! Starting sending...")
+                
+                else:
+                    # Time is already in the past, start immediately
+                    self.log_live("🚀 Scheduled time is in the past! Starting sending now...")
+                    print(f"DEBUG: Scheduled time {target_time} is in the past. Sending immediately.")
 
             else: # No schedule was set, start immediately
                  print("DEBUG: No schedule time set, starting immediately.")
                  self.log_live("🚀 Starting sending now...")
+            # --- *** END OF NEW LOGIC *** ---
+
 
             # --- Rest of the function (preparing attachments, calling selenium_send_bulk) ---
             logger = GuiLogger(self)
             send_attachments = []
 
-            # Custom Image Attachment Logic... (Keep this section as is)
+            # Custom Image Attachment Logic
             if self.custom_image_enabled:
                 self.log_live("📎 Attaching custom images...")
                 generated_image_paths = {}
@@ -3019,7 +5210,7 @@ class WabulkXpressApp(ctk.CTk):
                     if path and os.path.exists(path): send_attachments.append(path)
                     else: send_attachments.append(None)
 
-            # Single Attachment Logic... (Keep this section as is)
+            # Single Attachment Logic
             elif attachment_path:
                 self.log_live(f"📎 Attaching single file: {os.path.basename(attachment_path)}")
                 send_attachments = [attachment_path] * len(numbers)
@@ -3027,9 +5218,9 @@ class WabulkXpressApp(ctk.CTk):
                 send_attachments = None
 
             # --- Start Selenium Send ---
-            if not self.sending: # Final check before potentially long operation
+            if not self.sending: # Final check
                 print("DEBUG: Sending flag became False just before calling selenium_send_bulk.")
-                self.after(0, self.stop_sending) # Ensure UI reset if somehow missed
+                self.after(0, self.stop_sending)
                 return
 
             print(f"DEBUG: Calling selenium_send_bulk with {len(numbers)} numbers, min_delay={min_delay}, max_delay={max_delay}")
@@ -3044,7 +5235,7 @@ class WabulkXpressApp(ctk.CTk):
                 logger
             )
 
-            # --- Report and Cleanup --- (Keep this section as is)
+            # --- Report and Cleanup ---
             if (success + failure) > 0:
                 generate_html_report(success, failure)
             else:
@@ -3052,10 +5243,10 @@ class WabulkXpressApp(ctk.CTk):
 
             # Ensure stop_sending is called on the main thread after completion
             self.after(0, self.stop_sending)
-            self.schedule_time = None # Clear schedule time after execution
+            # self.schedule_time = None # Already cleared at the start
             print("DEBUG: Schedule thread finished.")
 
-        # Start the thread (This line remains the same)
+        # Start the thread
         threading.Thread(target=schedule_and_send, daemon=True).start()
 
         
@@ -3065,12 +5256,80 @@ class WabulkXpressApp(ctk.CTk):
         self.log_live("🛑 Sending stopped.") # Changed log message
         
     def set_schedule_time(self, schedule_time):
+        # Check if a process is already running
+        if self.sending:
+            self.log_live("❗️ Cannot set schedule while sending is already in progress.")
+            messagebox.showwarning("In Progress", "Cannot set a new schedule while a send is in progress. Please stop the current process first.")
+            return
+
+        # Set the schedule time
         self.schedule_time = schedule_time
         self.log_live(f"⏰ Scheduled sending for {schedule_time.strftime('%I:%M %p, %b %d, %Y')}")
+        
+        # --- THIS IS THE FIX ---
+        # Automatically call start_sending() to begin the "waiting" state.
+        # The start_sending function will see self.schedule_time and
+        # launch the thread that waits.
+        self.start_sending()
         
     # New method to show the AI popup
     def show_ai_popup(self):
         AIPopup(self, self.ai_button)
+
+    def start_ai_animation(self):
+        """Starts the border color cycling animation."""
+        if self.animation_active:
+            return
+        self.log_live("🤖 AI processing started...")
+        self.animation_active = True
+        self.ai_start_time = time.time()
+        self.animate_glow_border() # Start the loop
+
+    def stop_ai_animation(self):
+        """Stops the animation and resets the border."""
+        self.animation_active = False
+        try:
+            # Reset the FRAME'S BACKGROUND (which is our new border)
+            mode = ctk.get_appearance_mode().lower()
+            text_frame_bg = DARK_FG if mode == "dark" else LIGHT_FG
+            self.text_area_frame.configure(
+                fg_color=text_frame_bg
+            )
+        except Exception as e:
+            print(f"Error stopping animation: {e}") # Handle if widget is destroyed
+
+    def animate_glow_border(self):
+        """The animation loop. Cycles border color."""
+        if not self.animation_active:
+            self.stop_ai_animation() # Ensure it resets
+            return
+
+        # Cycle through colors based on time for "rotation" effect
+        color_index = int((time.time() * 5) % len(self.gradient_colors)) # Slower pulse
+        color = self.gradient_colors[color_index]
+        
+        try:
+            self.text_area_frame.configure(fg_color=color) # <-- CHANGED: Animate fg_color
+        except Exception:
+            pass # Ignore errors if widget is destroyed
+        
+        # Loop at ~30 FPS
+        self.after(33, self.animate_glow_border)
+
+    def type_text_animation(self, text, index=0):
+        """Animates text insertion into the message box."""
+        try:
+            if index < len(text):
+                self.message_text.insert("end", text[index])
+                self.message_text.see("end") # Auto-scroll
+                
+                # Randomize typing speed slightly (10ms to 40ms)
+                delay = random.randint(10, 40) 
+                self.after(delay, self.type_text_animation, text, index + 1)
+            else:
+                self.save_state() # Save state after typing is complete
+        except Exception as e:
+            print(f"Typing animation error: {e}") # Catch errors if window is closed
 
     # Modified method to handle popup closing
     def process_ai(self, option, popup=None):
@@ -3103,38 +5362,124 @@ class WabulkXpressApp(ctk.CTk):
     # Ensure this method is properly indented inside the WabulkXpressApp class
     # (4 spaces or consistent with class indentation)
     def call_gemini_api(self, option, text, lang=None):
-        try:
-            self.log_live(f"🧠 Calling AI ({option})...")
-            prompt = self.ai_prompts[option]
-            if option == "Translate":
-                prompt = prompt.format(lang=lang)
+        # --- 1. Start Animation on main thread ---
+        self.after(0, self.start_ai_animation)
+        
+        def ai_thread():
+            processed_text = ""
+            error_message = ""
             
-            full_prompt = f"{prompt}\n\n{text}"
-            
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(full_prompt)
-            
-            processed_text = response.text
-            
-            if processed_text:
-                self.after(0, lambda: self.update_message_text(processed_text))
-                self.log_live(f"✅ AI {option} applied successfully!")
-            else:
-                self.log_live(f"⚠️ AI processing returned empty result for {option}.")
-                logger.warning(f"Empty AI result. Raw response: {response}")
-        except Exception as e:
-            self.log_live(f"❌ Error in AI processing: {e}")
-            messagebox.showerror("AI Error", f"Failed to process with AI: {e}")
-            logger.error(f"Unexpected AI error: {e}", exc_info=True)
+            try:
+                # This code runs in a separate thread
+                prompt = self.ai_prompts[option]
+                if option == "Translate":
+                    prompt = prompt.format(lang=lang)
+                
+                full_prompt = f"{prompt}\n\n{text}"
+                
+                model = genai.GenerativeModel('gemini-2.0-flash')
+                response = model.generate_content(full_prompt)
+                
+                processed_text = response.text
+                
+            except Exception as e:
+                error_message = f"❌ Error in AI processing: {e}"
+                logger.error(f"Unexpected AI error: {e}", exc_info=True)
 
+            # --- 2. Enforce 3-second minimum ---
+            elapsed = time.time() - self.ai_start_time
+            min_wait = 3.0
+            if elapsed < min_wait:
+                sleep_time = min_wait - elapsed
+                print(f"DEBUG: AI finished in {elapsed:.2f}s, waiting {sleep_time:.2f}s for animation.")
+                time.sleep(sleep_time) # This blocks the AI thread, which is fine
+            
+            # --- 3. Stop animation and show results on main thread ---
+            def update_ui():
+                self.stop_ai_animation()
+                
+                if processed_text:
+                    self.save_state() # Save before changing
+                    self.message_text.delete("0.0", "end")
+                    self.type_text_animation(processed_text) # Call new typing function
+                    self.log_live(f"✅ AI {option} applied successfully!")
+                elif error_message:
+                    self.log_live(error_message)
+                    messagebox.showerror("AI Error", f"Failed to process with AI: {error_message}")
+                else:
+                    self.log_live(f"⚠️ AI processing returned empty result for {option}.")
+            
+            # Schedule the UI update on the main thread
+            self.after(0, update_ui)
+
+        # Start the AI processing in a new thread
+        threading.Thread(target=ai_thread, daemon=True).start()
+
+
+
+    def load_profile_picture(self):
+        try:
+            # 1. Fetch GitHub API
+            api_response = requests.get(GITHUB_AVATAR_API, timeout=10)
+            api_response.raise_for_status()
+            avatar_url = api_response.json()['avatar_url']
+            
+            # 2. Download Avatar Image
+            image_data = requests.get(avatar_url, timeout=10).content
+            avatar = Image.open(BytesIO(image_data)).convert("RGBA")
+            
+            # 3. Create the "Gemini Ring" Image
+            size = (60, 60) # Avatar size
+            ring_thickness = 4
+            final_size_val = size[0] + ring_thickness * 2
+            final_size = (final_size_val, final_size_val) # Final image size
+
+            base = Image.new("RGBA", final_size, (0, 0, 0, 0)) # Transparent base
+            draw = ImageDraw.Draw(base)
+            
+            # R, Y, G, B
+            colors = ["#EA4335", "#FBBC05", "#34A853", "#4285F4"] 
+            
+            # 4. Draw the 4 colored arcs
+            bbox = [(0, 0), final_size]
+            draw.arc(bbox, 270, 360, fill=colors[0], width=ring_thickness) # Top-Right, Red
+            draw.arc(bbox, 180, 270, fill=colors[1], width=ring_thickness) # Top-Left, Yellow
+            draw.arc(bbox, 90, 180, fill=colors[2], width=ring_thickness) # Bottom-Left, Green
+            draw.arc(bbox, 0, 90, fill=colors[3], width=ring_thickness) # Bottom-Right, Blue
+
+            # 5. Create circular mask for avatar
+            mask = Image.new("L", size, 0)
+            draw_mask = ImageDraw.Draw(mask)
+            draw_mask.ellipse((0, 0), size, fill=255)
+            
+            avatar = avatar.resize(size, Image.Resampling.LANCZOS)
+            
+            # 6. Paste avatar inside the ring
+            base.paste(avatar, (ring_thickness, ring_thickness), mask)
+            
+            # 7. Create the CTkImage
+            self.profile_image = ctk.CTkImage(light_image=base, dark_image=base, size=final_size)
+            
+            # 8. Schedule the update on the main GUI thread
+            if self.profile_image_label:
+                self.after(0, self.update_profile_image)
+                
+        except Exception as e:
+            print(f"Failed to load profile pic: {e}")
+            logger.error(f"Failed to load GitHub profile picture: {e}")
+
+    def update_profile_image(self):
+        # This runs on the main thread to safely update the UI
+        if self.profile_image and self.profile_image_label:
+            self.profile_image_label.configure(image=self.profile_image, text="")
 
 
             
     def update_message_text(self, text):
+        """Clears and inserts text using the typing animation."""
         self.save_state() # Save before changing
         self.message_text.delete("0.0", "end")
-        self.message_text.insert("0.0", text)
-        self.save_state() # Save after changing
+        self.type_text_animation(text) # Use the new animation
         
     def log_live(self, message):
         if not self.winfo_exists():
@@ -3154,102 +5499,150 @@ class WabulkXpressApp(ctk.CTk):
         self.live_alerts.configure(state="disabled")
         
     def check_for_update(self):
-        try:
-            self.log_live("Checking for updates...")
-            response = requests.get(GITHUB_API_URL, timeout=15)
-            response.raise_for_status()
-            latest_version = response.json().get("tag_name", "0")
-
-            # --- Add this block ---
-            # Update the last check time after a successful manual check
-            try:
-                with open(UPDATE_CHECK_FILE, 'w') as f:
-                    f.write(str(time.time()))
-                print(f"DEBUG: Updated last update check timestamp (manual check) to {datetime.now()}") # Console log
-            except Exception as e:
-                print(f"DEBUG: Failed to update timestamp file after manual check: {e}") # Console log
-            # --- End added block ---
-
-            if float(latest_version) > float(CURRENT_VERSION):
-                self.log_live(f"Update available: {latest_version} (Current: {CURRENT_VERSION})")
-                # Use the prompt helper function
-                self.prompt_for_update(latest_version)
-            else:
-                self.log_live("You are using the latest version.")
-                messagebox.showinfo("Up to Date", f"You are using the latest version ({CURRENT_VERSION}).")
-        # ... (rest of the error handling remains the same) ...
-        except requests.exceptions.Timeout:
-            self.log_live(f"Update check failed: Request timed out.")
-            messagebox.showerror("Update Error", "Failed to check for updates: Request timed out.")
-        except requests.exceptions.RequestException as e:
-            self.log_live(f"Update check failed: {e}")
-            messagebox.showerror("Update Error", f"Failed to check for updates: {e}")
-        except Exception as e:
-            self.log_live(f"Unexpected error during update check: {e}")
-            messagebox.showerror("Update Error", f"An unexpected error occurred: {e}")
-            logger.error(f"Update check error: {e}", exc_info=True)
+        """Launches the new custom update popup window."""
+        UpdatePopup(self)
                 
     def toggle_theme(self):
         current_mode = ctk.get_appearance_mode().lower()
         new_mode = "Light" if current_mode == "dark" else "Dark"
-        ctk.set_appearance_mode(new_mode)
+        ctk.set_appearance_mode(new_mode) # Set the global theme
 
+        # --- Update Custom Title Bar Colors ---
+        # Call the helper method to update the color variables based on the new mode
+        self._set_title_bar_colors(new_mode.lower())
+        # Check if the title bar widgets exist before trying to configure them
+        if hasattr(self, 'title_bar') and self.title_bar.winfo_exists():
+            self.title_bar.configure(fg_color=self.title_bar_color)
+            if hasattr(self, 'title_label') and self.title_label.winfo_exists():
+                self.title_label.configure(text_color=self.title_text_color)
+            if hasattr(self, 'minimize_button') and self.minimize_button.winfo_exists():
+                self.minimize_button.configure(hover_color=self.button_hover_color, text_color=self.title_text_color)
+            if hasattr(self, 'maximize_button') and self.maximize_button.winfo_exists():
+                self.maximize_button.configure(hover_color=self.button_hover_color, text_color=self.title_text_color)
+            if hasattr(self, 'close_button') and self.close_button.winfo_exists():
+                self.close_button.configure(hover_color=self.close_hover_color)
+                # Reset close button text color (as hover bind might change it to white)
+                self.close_button.configure(text_color=self.title_text_color)
+        # --- End Title Bar Update ---
+
+        # Update Profile Button theme if it exists
+        if hasattr(self, "profile_button"):
+            self.profile_button.update_theme()
+
+        # Update Main App Widgets based on the new theme
         if new_mode == "Light":
-            # Apply Light Theme
-            self.configure(fg_color=LIGHT_BG)
+            # Apply Light Theme Colors
+            self.configure(fg_color=LIGHT_BG) # Main app frame background
             self.sidebar.configure(fg_color=LIGHT_FG)
             self.header.configure(fg_color=LIGHT_FG)
-            self.main_area.configure(fg_color="transparent")
+            self.main_area.configure(fg_color="transparent") # Main content area background
             self.message_frame.configure(fg_color=LIGHT_FG)
             self.excel_frame.configure(fg_color=LIGHT_FG)
             self.live_alerts.configure(fg_color=LIGHT_INNER)
-            self.text_area_frame.configure(fg_color=LIGHT_INNER)
+
+            # Update Message Text Area Frame Background (only if AI animation is not active)
+            if not self.animation_active:
+                self.text_area_frame.configure(fg_color=LIGHT_FG)
             self.message_text.configure(fg_color=LIGHT_INNER)
+
             self.min_delay_entry.configure(fg_color=LIGHT_INNER)
             self.max_delay_entry.configure(fg_color=LIGHT_INNER)
-            self.excel_table.configure(
-                fg_color=LIGHT_FG,
-                scrollbar_button_color="#AAAAAA",       # Lighter gray knob for light mode
-                scrollbar_button_hover_color="#888888"  # Medium gray knob on hover
-            )
-            # Update ExcelTable rows
-            for row in self.excel_table.rows:
-                if row["phone"].winfo_exists(): # Check if widget exists before configuring
-                    row["phone"].configure(fg_color=LIGHT_INNER)
-                    row["name"].configure(fg_color=LIGHT_INNER)
-                    row["indicator"].configure(bg=LIGHT_INNER)
-            # Update AI button hover color
-            # Update AI button colors
-            self.ai_button.configure(fg_color=LIGHT_INNER, hover_color=LIGHT_FG)
-        else:
-            # Apply Dark Theme
-            self.configure(fg_color=DARK_BG)
+
+            # Update Excel Table Colors
+            if hasattr(self, 'excel_table'):
+                self.excel_table.configure(
+                    fg_color=LIGHT_FG,
+                    scrollbar_button_color="#AAAAAA",       # Lighter gray knob for scrollbar
+                    scrollbar_button_hover_color="#888888"  # Medium gray knob on hover
+                )
+                # Update individual rows in the Excel Table
+                for row in self.excel_table.rows:
+                    # Check if widgets still exist before configuring
+                    if "phone" in row and row["phone"].winfo_exists():
+                        row["phone"].configure(fg_color=LIGHT_INNER)
+                    if "name" in row and row["name"].winfo_exists():
+                        row["name"].configure(fg_color=LIGHT_INNER)
+                    # Configure custom columns if they exist
+                    if "custom1" in row and row["custom1"].winfo_exists():
+                        row["custom1"].configure(fg_color=LIGHT_INNER)
+                    if "custom2" in row and row["custom2"].winfo_exists():
+                        row["custom2"].configure(fg_color=LIGHT_INNER)
+                    # Update indicator background
+                    if "indicator" in row and row["indicator"].winfo_exists():
+                         # For tk.Canvas, use 'bg'
+                         row["indicator"].configure(bg=LIGHT_BG) # Match main background
+
+            # Update AI Button Colors for Light Mode
+            if hasattr(self, 'ai_button'):
+                ai_bg = LIGHT_FG
+                ai_hover = "#E0E0E0"
+                ai_press = "#CFCFCF" # Press color for light mode
+                self.ai_button.configure(fg_color=ai_bg, hover_color=ai_hover)
+                # Re-bind press/release for new colors
+                self.ai_button.bind("<ButtonPress-1>", lambda e, c=ai_press: self.ai_button.configure(fg_color=c))
+                self.ai_button.bind("<ButtonRelease-1>", lambda e, c=ai_hover: self.ai_button.configure(fg_color=c))
+
+        else: # new_mode == "Dark"
+            # Apply Dark Theme Colors
+            self.configure(fg_color=DARK_BG) # Main app frame background
             self.sidebar.configure(fg_color=DARK_FG)
             self.header.configure(fg_color=DARK_FG)
-            self.main_area.configure(fg_color="transparent")
+            self.main_area.configure(fg_color="transparent") # Main content area background
             self.message_frame.configure(fg_color=DARK_FG)
             self.excel_frame.configure(fg_color=DARK_FG)
             self.live_alerts.configure(fg_color=DARK_INNER)
-            self.text_area_frame.configure(fg_color=DARK_INNER)
+
+            # Update Message Text Area Frame Background (only if AI animation is not active)
+            if not self.animation_active:
+                self.text_area_frame.configure(fg_color=DARK_FG)
             self.message_text.configure(fg_color=DARK_INNER)
+
             self.min_delay_entry.configure(fg_color=DARK_INNER)
             self.max_delay_entry.configure(fg_color=DARK_INNER)
-            self.excel_table.configure(
-                fg_color=DARK_FG,
-                scrollbar_button_color="#555555",       # Darker gray knob for dark mode
-                scrollbar_button_hover_color="#333333"  # Even darker on hover
-            )
-            # Update ExcelTable rows
-            for row in self.excel_table.rows:
-                 if row["phone"].winfo_exists(): # Check if widget exists
-                    row["phone"].configure(fg_color=DARK_INNER)
-                    row["name"].configure(fg_color=DARK_INNER)
-                    row["indicator"].configure(bg=DARK_INNER)
-            # Update AI button hover color
-            self.ai_button.configure(hover_color=DARK_FG)
 
+            # Update Excel Table Colors
+            if hasattr(self, 'excel_table'):
+                self.excel_table.configure(
+                    fg_color=DARK_FG,
+                    scrollbar_button_color="#555555",       # Darker gray knob for scrollbar
+                    scrollbar_button_hover_color="#333333"  # Even darker knob on hover
+                )
+                # Update individual rows in the Excel Table
+                for row in self.excel_table.rows:
+                     # Check if widgets still exist before configuring
+                    if "phone" in row and row["phone"].winfo_exists():
+                        row["phone"].configure(fg_color=DARK_INNER)
+                    if "name" in row and row["name"].winfo_exists():
+                        row["name"].configure(fg_color=DARK_INNER)
+                    # Configure custom columns if they exist
+                    if "custom1" in row and row["custom1"].winfo_exists():
+                        row["custom1"].configure(fg_color=DARK_INNER)
+                    if "custom2" in row and row["custom2"].winfo_exists():
+                        row["custom2"].configure(fg_color=DARK_INNER)
+                    # Update indicator background
+                    if "indicator" in row and row["indicator"].winfo_exists():
+                         # For tk.Canvas, use 'bg'
+                         row["indicator"].configure(bg=DARK_BG) # Match main background
+
+            # Update AI Button Colors for Dark Mode
+            if hasattr(self, 'ai_button'):
+                ai_bg = DARK_FG
+                ai_hover = "#333333"
+                ai_press = "#555555" # Press color for dark mode
+                self.ai_button.configure(fg_color=ai_bg, hover_color=ai_hover)
+                # Re-bind press/release for new colors
+                self.ai_button.bind("<ButtonPress-1>", lambda e, c=ai_press: self.ai_button.configure(fg_color=c))
+                self.ai_button.bind("<ButtonRelease-1>", lambda e, c=ai_hover: self.ai_button.configure(fg_color=c))
+
+        # Refresh Header Icons (Theme Toggle, Update)
         self.refresh_icons()
-        
+
+        # Update Hover Hints Theme
+        if hasattr(self, 'all_hints'):
+            for hint in self.all_hints:
+                if hint.winfo_exists():
+                    hint.update_theme()
+                
     def on_close(self):
         # Ensure cleanup happens before destroying the window
         if self.sending:
@@ -3268,24 +5661,59 @@ class WabulkXpressApp(ctk.CTk):
         
         # Add any other necessary cleanup here (e.g., close Selenium driver if running)
         
-        self.destroy() # Destroy the main window
+    # ... (cleanup logic)
+        self.master.destroy() # Destroy the main window
         sys.exit(0) # Ensure the script fully terminates
 
 if __name__ == "__main__":
+    
     # Setup basic logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-    
-    # Redirect stdout/stderr for better error handling if running as executable (optional)
-    # try:
-    #     sys.stdout = open('stdout.log', 'w')
-    #     sys.stderr = open('stderr.log', 'w')
-    # except Exception as e:
-    #     print(f"Could not redirect stdout/stderr: {e}")
+
+    # --- Initialize tkinterdnd2 Root Window ---
+    # This MUST be the root window for drag & drop to work
+    root = tkinterdnd2.TkinterDnD.Tk()
+
+    # --- Add this print statement to debug ---
+    print(f"DEBUG: 'root' variable created: {root}")
+
+    # Remove standard title bar for the custom one
+    root.overrideredirect(True)
+    ctk.set_appearance_mode("Dark")
+    detected_mode = "dark" # We forced it
+    root_bg_color = DARK_BG
+    root.configure(bg=root_bg_color) # Use 'bg' for standard Tk root
+    root.title("WabulkXpress")
+    root.geometry("1800x900")
+
+    # Apply Icon (will show in taskbar)
+    if os.path.exists(TITLE_ICON_PATH):
+        try:
+            icon_img = Image.open(TITLE_ICON_PATH).resize((32,32), Image.Resampling.LANCZOS)
+            icon_tk = ImageTk.PhotoImage(icon_img)
+            root.wm_iconphoto(False, icon_tk)
+        except Exception as e:
+            print(f"Error loading title icon: {e}")
+
+    loco_icon = os.path.join(os.getcwd(), "bin", "loco.ico")
+    if os.path.exists(loco_icon):
+        try:
+            root.iconbitmap(loco_icon)
+        except Exception as e:
+            print(f"Error loading bitmap icon: {e}")
 
     logger.info("Starting WabulkXpress Application...")
-    app = WabulkXpressApp()
+
+    # Create the App Frame inside the Root
+    app = WabulkXpressApp(master=root, fg_color="transparent")
+    # Pack the main app frame *below* the custom title bar
+    app.pack(fill="both", expand=True)
+
+    # Set the close protocol to the app's method
+    root.protocol("WM_DELETE_WINDOW", app.on_close)
+
     try:
-        app.mainloop()
+        root.mainloop() # Run the root window's mainloop
     except Exception as e:
          logger.error("An unhandled exception occurred in the main loop:", exc_info=True)
          messagebox.showerror("Fatal Error", f"A critical error occurred:\n{e}\n\nPlease check the logs for details.")
