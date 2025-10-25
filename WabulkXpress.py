@@ -3481,7 +3481,7 @@ class ProfileButton(ctk.CTkFrame):
         # --- Image Size & Animation Settings ---
         self.image_size_val = 30 # Diameter of avatar (smaller)
         self.ring_thickness = 3
-        self.image_final_size = self.image_size_val + self.ring_thickness * 2 # 56
+        self.image_final_size = self.image_size_val + self.ring_thickness * 2 # 36
         
         self.frame_height = 70 # Match other header buttons
         self.start_width = 70  # Collapsed width (matches height)
@@ -3542,18 +3542,18 @@ class ProfileButton(ctk.CTkFrame):
                                        corner_radius=35, # Half of height
                                        fg_color=self.bg_color)
         self.main_frame.pack(side="right", fill="y", pady=0, padx=0)
-        self.main_frame.pack_propagate(False) 
+        self.main_frame.pack_propagate(False) # <--- IMPORTANT
 
-        # --- 3. Text Label (Created but not packed) ---
+        # --- 3. Text Label (Created but not placed) ---
         self.text_label = ctk.CTkLabel(self.main_frame, 
                                        text="Parth Sancheti", 
                                        font=("Arial", 16, "bold"),
                                        fg_color="transparent")
         
-        # --- 4. Image Label (Packed on the right) ---
+        # --- 4. Image Label (USE .place() INSTEAD OF .pack()) ---
         self.image_label = ctk.CTkLabel(self.main_frame, text="", image=self.profile_image, fg_color="transparent")
-        # Pack with padding to center it in the 70px frame
-        self.image_label.pack(side="right", padx=7) 
+        # Place it centered vertically, relative to the RIGHT edge of the frame
+        self.image_label.place(relx=1.0, rely=0.5, x=-(self.start_width/2), anchor="center")
 
         # Bind events to all components
         self.bind_all("<Enter>", self.on_enter)
@@ -3573,16 +3573,19 @@ class ProfileButton(ctk.CTkFrame):
         self.animating_out = False
         self.start_time = time.time()
         
-        # --- NEW: Pack text to the LEFT of the image ---
-        self.text_label.pack(side="left", padx=(20, 10), fill="both", expand=True)
+        # --- NEW: Use .place() for text ---
+        # Place text relative to the LEFT edge, centered vertically
+        self.text_label.place(relx=0, rely=0.5, x=20, anchor="w") 
+        
         self.animate_expand()
 
     def on_leave(self, event=None):
         self.animating_out = True
         self.start_time = time.time()
         
-        # --- NEW: Unpack text ---
-        self.text_label.pack_forget()
+        # --- NEW: Use .place_forget() for text ---
+        self.text_label.place_forget()
+        
         self.animate_collapse()
         
     # --- Easing Functions for smooth start/end ---
@@ -3622,7 +3625,6 @@ class ProfileButton(ctk.CTkFrame):
         mode = ctk.get_appearance_mode().lower()
         self.bg_color = DARK_FG if mode == "dark" else LIGHT_FG
         self.main_frame.configure(fg_color=self.bg_color)
-
 
 
 def generate_html_report(success, failure):
@@ -3706,7 +3708,22 @@ def generate_html_report(success, failure):
 class WabulkXpressApp(ctk.CTkFrame):       
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        self.master = master
+        
+        # --- FIX 1: Define self.master FIRST ---
+        self.master = master 
+        
+        # --- FIX 2: This block MUST come BEFORE creating self.title_bar ---
+        # Get theme colors to set the title bar color correctly
+        mode = ctk.get_appearance_mode().lower()
+        self._set_title_bar_colors(mode) # This creates self.title_bar_color
+        
+        # --- Create the Custom Title Bar ---
+        # This line will now work
+        self.title_bar = ctk.CTkFrame(self.master, height=45, corner_radius=10, fg_color=self.title_bar_color)
+        self.title_bar.pack(side="top", fill="x", padx=0, pady=(0, 10))
+        self.title_bar.pack_propagate(False) # <-- ADD THIS LINE BACK
+
+        # --- Create the Main App Frames ---
         self.animation_active = False
         self.ai_start_time = 0
         # 20-step Blue/Purple "Pulse" (2 colors, 20 shades)
@@ -3717,8 +3734,8 @@ class WabulkXpressApp(ctk.CTkFrame):
             "#6C5CDF", "#5E69E6", "#5077ED", "#4285F4", "#3473E7"
         ]
         self.attachments = {"Picture": None, "Video": None, "Document": None, "Any": None}
-        self.all_hints = [] # <-- ADD THIS LINE
-        self.find_last_index = "1.0" # <-- ADD THIS LINE
+        self.all_hints = []
+        self.find_last_index = "1.0"
         self.excel_find_last_pos = {"row": 0, "col_idx": -1}
         self.custom_image_enabled = False
         self.excel_data = []
@@ -3728,16 +3745,23 @@ class WabulkXpressApp(ctk.CTkFrame):
         self.schedule_time = None
         self.first_cycle = True
         self.last_action = None
+        
         self.sidebar = ctk.CTkFrame(self, width=250, corner_radius=15, fg_color=DARK_FG) # Theme
         self.sidebar.pack(side="left", fill="y", padx=10, pady=10)
+        
         self.header = ctk.CTkFrame(self, height=120, corner_radius=15, fg_color=DARK_FG) # Theme
-        self.header.pack(side="top", fill="x", padx=10, pady=(10,0))
+        self.header.pack(side="top", fill="x", padx=10, pady=(0,0)) # No vertical padding        
+        
+        # --- FIX 3: Define self.main_area BEFORE packing it ---
         self.main_area = ctk.CTkFrame(self, corner_radius=15, fg_color="transparent") # Theme
         self.main_area.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        
+        # --- Create Widgets ---
         self.create_sidebar()
         self.create_header()
         self.create_main_area()
-        self._create_custom_title_bar()
+        self._create_custom_title_bar() # Call the function to populate the title bar
+        
         self.gemini_api_key = "AIzaSyDmYy3CFKb0aoVRYZANAyp6X3jgKUe__6g"  # Fallback (replace with actual key or handle gracefully)
         self.gemini_api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={self.gemini_api_key}"
         self.ai_prompts = {
@@ -3760,6 +3784,162 @@ class WabulkXpressApp(ctk.CTkFrame):
         # --- END NEW LICENSE CHECK ---
 
         self.refresh_icons()
+        initial_mode = ctk.get_appearance_mode() # Gets "Light" or "Dark"
+        self.apply_theme(initial_mode)
+
+    # --- --------------------------------- ---
+    # --- CUSTOM TITLE BAR FUNCTIONS      ---
+    # --- --------------------------------- ---
+
+    def _create_custom_title_bar(self):
+        """Populates the custom title bar frame."""
+        
+        # --- App Icon ---
+        try:
+            icon_path = TITLE_ICON_PATH
+            if os.path.exists(icon_path):
+                img = Image.open(icon_path).resize((20, 20), Image.Resampling.LANCZOS)
+                self.app_icon_image = ctk.CTkImage(light_image=img, dark_image=img, size=(20, 20))
+                self.icon_label = ctk.CTkLabel(self.title_bar, image=self.app_icon_image, text="", fg_color="transparent")
+                self.icon_label.pack(side="left", padx=(15, 10), pady=5)
+            else:
+                self.icon_label = None
+        except Exception as e:
+            print(f"Error loading title bar icon: {e}")
+            self.icon_label = None
+
+        # --- Title Label ---
+        self.title_label = ctk.CTkLabel(self.title_bar, text="WabulkXpress", font=("Segoe UI", 14, "bold"), text_color=self.title_text_color, anchor="w")
+        self.title_label.pack(side="left", fill="x", expand=True, pady=5, padx=5)
+
+        # --- Window Control Buttons (Right to Left order) ---
+        
+        # --- FIX: Set uniform size and remove vertical padding ---
+        button_width = 50
+        button_height = 45 # Match title bar height
+        button_pady = 0    # Remove vertical padding
+        
+        # Close Button
+        self.close_button = ctk.CTkButton(
+            self.title_bar, text="✕", 
+            width=button_width, height=button_height, corner_radius=0, # Use 0 radius for a flush look
+            fg_color="transparent", 
+            hover_color=self.close_hover_color, # This is a fallback
+            text_color=self.title_text_color, 
+            font=("Segoe UI Symbol", 12),
+            command=self.on_close
+        )
+        self.close_button.pack(side="right", padx=0, pady=button_pady) # Use new padding
+
+        # --- FIX: Correct manual binds to change BG color ---
+        self.close_button.bind("<Enter>", 
+            lambda e: self.close_button.configure(
+                fg_color=self.close_hover_color, 
+                text_color="white"
+            )
+        )
+        self.close_button.bind("<Leave>", 
+            lambda e: self.close_button.configure(
+                fg_color="transparent", 
+                text_color=self.title_text_color
+            )
+        )
+
+        # Maximize/Restore Button
+        self._is_maximized = False
+        self._restore_geometry = ""
+        self.maximize_button = ctk.CTkButton(
+            self.title_bar, text="☐", 
+            width=button_width, height=button_height, corner_radius=0, # Use new size
+            fg_color="transparent", hover_color=self.button_hover_color,
+            text_color=self.title_text_color, font=("Segoe UI Symbol", 11),
+            command=self._toggle_maximize
+        )
+        self.maximize_button.pack(side="right", padx=0, pady=button_pady) # Use new padding
+
+        # Minimize Button
+        self.minimize_button = ctk.CTkButton(
+            self.title_bar, 
+            text="−", # --- FIX: Use centered Minus Sign (U+2212) ---
+            width=button_width, height=button_height, corner_radius=0, # Use new size
+            fg_color="transparent", hover_color=self.button_hover_color,
+            text_color=self.title_text_color, font=("Segoe UI Symbol", 11, "bold"),
+            command=self._minimize_window
+        )
+        self.minimize_button.pack(side="right", padx=0, pady=button_pady) # Use new padding
+
+        # --- Drag Functionality ---
+        self._offset_x = 0
+        self._offset_y = 0
+        widgets_to_bind = [self.title_bar, self.title_label]
+        if self.icon_label:
+             widgets_to_bind.append(self.icon_label)
+
+        for widget in widgets_to_bind:
+             if widget:
+                widget.bind("<ButtonPress-1>", self._start_move)
+                widget.bind("<ButtonRelease-1>", self._stop_move)
+                widget.bind("<B1-Motion>", self._do_move)
+                widget.bind("<Double-Button-1>", self._toggle_maximize)
+
+    def _minimize_window(self):
+        """Minimizes the main window using ctypes for borderless window."""
+        if "win" not in sys.platform:
+            self.master.iconify()
+            return
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.master.winfo_id())
+            ctypes.windll.user32.ShowWindow(hwnd, 6) # SW_MINIMIZE
+        except Exception as e:
+            print(f"Error minimizing window: {e}")
+            self.master.iconify()
+
+    def _toggle_maximize(self, event=None):
+        """Maximizes or restores the main window."""
+        if self._is_maximized:
+            self.master.geometry(self._restore_geometry)
+            self.maximize_button.configure(text="☐")
+            self._is_maximized = False
+        else:
+            self._restore_geometry = self.master.geometry()
+            screen_width = self.master.winfo_screenwidth()
+            screen_height = self.master.winfo_screenheight()
+            taskbar_height = 40
+            max_height = screen_height - taskbar_height
+            self.master.geometry(f"{screen_width}x{max_height}+0+0")
+            self.maximize_button.configure(text="❐")
+            self._is_maximized = True
+
+    def _start_move(self, event):
+        if self._is_maximized:
+            return
+        self._offset_x = event.x
+        self._offset_y = event.y
+
+    def _stop_move(self, event):
+        self._offset_x = 0
+        self._offset_y = 0
+
+    def _do_move(self, event):
+        if self._is_maximized:
+            return
+        new_x = self.master.winfo_x() + event.x - self._offset_x
+        new_y = self.master.winfo_y() + event.y - self._offset_y
+        self.master.geometry(f"+{new_x}+{new_y}")
+
+    def _set_title_bar_colors(self, mode):
+        """Sets the colors for the title bar and its buttons."""
+        if mode == "dark":
+            self.title_bar_color = "#000000" # Pitch Black
+            self.title_text_color = "#FFFFFF"
+            self.button_hover_color = DARK_INNER
+            self.close_hover_color = "#C42B1C" # Red hover
+        else:
+            # --- THIS BLOCK WAS MISSING ---
+            self.title_bar_color = LIGHT_FG  # Use the theme's light frame color (F5F5F5)
+            self.title_text_color = "#000000" # Black text
+            self.button_hover_color = LIGHT_INNER # (EAEAEA)
+            self.close_hover_color = "#E81123" # Standard Windows light-mode close red
 
     def open_find_popup(self, event=None):
         """Opens the Find & Replace dialog."""
@@ -3990,7 +4170,7 @@ class WabulkXpressApp(ctk.CTkFrame):
         
     def create_header(self):
         # Double the height of the header box (assuming default ~40, set to 80)
-        self.header.configure(height=80)
+        
         
         # Use grid for better vertical centering control
         self.header.grid_columnconfigure(0, weight=1)
@@ -4048,6 +4228,9 @@ class WabulkXpressApp(ctk.CTkFrame):
         self.profile_button = ProfileButton(right_frame)
         self.profile_button.grid(row=1, column=2, padx=(5, 0), sticky="e")
         
+        # Call refresh_icons (which was part of the original create_header)
+        self.refresh_icons()
+
     def get_icon(self, icon_name):
         mode = ctk.get_appearance_mode().lower()
         if icon_name in ["github", "update"]:
@@ -4287,89 +4470,21 @@ class WabulkXpressApp(ctk.CTkFrame):
             self.max_delay_entry.insert(0, str(DEFAULT_MAX_DELAY))
             self.max_delay_entry.pack(side="left", padx=5)
 
-    def _create_custom_title_bar(self):
-        """Creates a custom title bar with icon, drag, close, minimize, maximize."""
-        mode = ctk.get_appearance_mode().lower()
-        self._set_title_bar_colors(mode) # Call helper to set colors
+# --- ---------------------------------------------------- ---
+    # --- NEW HELPER METHODS FOR THE MERGED HEADER/TITLE BAR ---
+    # --- ---------------------------------------------------- ---
 
-        self.title_bar = ctk.CTkFrame(self.master, height=35, corner_radius=10, fg_color=self.title_bar_color)
-        self.title_bar.pack(side="top", fill="x")
-        self.title_bar.pack_propagate(False) # Prevent frame from shrinking to content
-
-        # --- App Icon ---
-        try:
-            # Use the same icon as the window
-            icon_path = TITLE_ICON_PATH
-            if os.path.exists(icon_path):
-                img = Image.open(icon_path).resize((18, 18), Image.Resampling.LANCZOS)
-                self.app_icon_image = ctk.CTkImage(light_image=img, dark_image=img, size=(18, 18))
-                self.icon_label = ctk.CTkLabel(self.title_bar, image=self.app_icon_image, text="", fg_color="transparent")
-                self.icon_label.pack(side="left", padx=(8, 5), pady=5)
-            else:
-                self.icon_label = None # No icon label if file missing
-        except Exception as e:
-            print(f"Error loading title bar icon: {e}")
-            self.icon_label = None
-
-        # --- Title Label ---
-        self.title_label = ctk.CTkLabel(self.title_bar, text="WabulkXpress", font=("Segoe UI", 11), text_color=self.title_text_color, anchor="w")
-        self.title_label.pack(side="left", fill="x", expand=True, pady=5)
-
-        # --- Window Control Buttons (Right to Left order) ---
-        # Close Button (Larger Hitbox)
-        self.close_button = ctk.CTkButton(
-            self.title_bar, text="✕", width=45, height=35, corner_radius=0,
-            fg_color="transparent", hover_color=self.close_hover_color,
-            text_color=self.title_text_color, font=("Segoe UI Symbol", 12),
-            command=self.on_close
-        )
-        self.close_button.pack(side="right")
-        # Change hover text color specifically for close button
-        self.close_button.bind("<Enter>", lambda e: self.close_button.configure(text_color="white"))
-        self.close_button.bind("<Leave>", lambda e: self.close_button.configure(text_color=self.title_text_color))
-
-        # Maximize/Restore Button
-        # We'll use ☐ initially, and change text in the toggle function
-        self._is_maximized = False
-        self._restore_geometry = ""
-        self.maximize_button = ctk.CTkButton(
-            self.title_bar, text="☐", width=45, height=35, corner_radius=0,
-            fg_color="transparent", hover_color=self.button_hover_color,
-            text_color=self.title_text_color, font=("Segoe UI Symbol", 11), # Slightly smaller symbol
-            command=self._toggle_maximize
-        )
-        self.maximize_button.pack(side="right")
-
-        # Minimize Button
-        self.minimize_button = ctk.CTkButton(
-            self.title_bar, text="＿", width=45, height=35, corner_radius=0,
-            fg_color="transparent", hover_color=self.button_hover_color,
-            text_color=self.title_text_color, font=("Segoe UI Symbol", 11, "bold"), # Bold underscore
-            command=self._minimize_window
-        )
-        self.minimize_button.pack(side="right")
-
-
-        # --- Drag Functionality ---
-        self._offset_x = 0
-        self._offset_y = 0
-
-        # Bind dragging to title bar and title label
-        widgets_to_bind = [self.title_bar, self.title_label]
-        if self.icon_label: # Bind icon only if it exists
-             widgets_to_bind.append(self.icon_label)
-
-        for widget in widgets_to_bind:
-             if widget: # Ensure widget exists before binding
-                widget.bind("<ButtonPress-1>", self._start_move)
-                widget.bind("<ButtonRelease-1>", self._stop_move)
-                widget.bind("<B1-Motion>", self._do_move)
-                widget.bind("<Double-Button-1>", self._toggle_maximize) # Double-click to maximize/restore
-
-    # --- Methods for Window Control ---
     def _minimize_window(self):
-        """Minimizes the main window."""
-        self.master.iconify()
+        """Minimizes the main window using ctypes for borderless window."""
+        if "win" not in sys.platform:
+            self.master.iconify()
+            return
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.master.winfo_id())
+            ctypes.windll.user32.ShowWindow(hwnd, 6) # SW_MINIMIZE
+        except Exception as e:
+            print(f"Error minimizing window: {e}")
+            self.master.iconify()
 
     def _toggle_maximize(self, event=None):
         """Maximizes or restores the main window."""
@@ -4381,20 +4496,15 @@ class WabulkXpressApp(ctk.CTkFrame):
         else:
             # Maximize
             self._restore_geometry = self.master.geometry() # Save current size/pos
-            # Get screen dimensions WITHOUT taskbar
             screen_width = self.master.winfo_screenwidth()
             screen_height = self.master.winfo_screenheight()
-            # A common approximation for taskbar height is ~40px, adjust if needed
-            # More robust methods exist but are complex (using win32api)
             taskbar_height = 40
             max_height = screen_height - taskbar_height
             self.master.geometry(f"{screen_width}x{max_height}+0+0")
-            self.maximize_button.configure(text="❐") # Maximize symbol (may vary by font)
+            self.maximize_button.configure(text="❐") # Maximize symbol
             self._is_maximized = True
 
-    # --- Methods for Dragging (Unchanged but needed) ---
     def _start_move(self, event):
-        # Don't start drag if window is maximized
         if self._is_maximized:
             return
         self._offset_x = event.x
@@ -4405,43 +4515,25 @@ class WabulkXpressApp(ctk.CTkFrame):
         self._offset_y = 0
 
     def _do_move(self, event):
-        # Don't move if window is maximized
         if self._is_maximized:
             return
-        # Calculate new window position
         new_x = self.master.winfo_x() + event.x - self._offset_x
         new_y = self.master.winfo_y() + event.y - self._offset_y
         self.master.geometry(f"+{new_x}+{new_y}")
 
-
-    # --- Helper to set colors based on theme ---
-    def _set_title_bar_colors(self, mode):
+    def _set_header_button_colors(self, mode):
+        """Helper to set colors for window controls."""
         if mode == "dark":
-            self.title_bar_color = DARK_FG # Use Frame Background color
             self.title_text_color = "#FFFFFF"
-            self.button_hover_color = DARK_INNER # Use Inner Element color for hover
-            self.close_hover_color = "#C42B1C" # Standard Windows dark close hover
+            self.button_hover_color = DARK_INNER
+            self.close_hover_color = "#C42B1C"
         else:
-            self.title_bar_color = LIGHT_FG
             self.title_text_color = "#000000"
             self.button_hover_color = LIGHT_INNER
-            self.close_hover_color = "#E81123" # Standard Windows light close hover
+            self.close_hover_color = "#E81123"
 
-    # --- Methods for Dragging ---
-    def _start_move(self, event):
-        self._offset_x = event.x
-        self._offset_y = event.y
 
-    def _stop_move(self, event):
-        self._offset_x = 0
-        self._offset_y = 0
-
-    def _do_move(self, event):
-        # Calculate new window position
-        new_x = self.master.winfo_x() + event.x - self._offset_x
-        new_y = self.master.winfo_y() + event.y - self._offset_y
-        self.master.geometry(f"+{new_x}+{new_y}")
-             
+         
     def show_context_menu(self, event):
         try:
             # Update menu theme before showing
@@ -5501,16 +5593,18 @@ class WabulkXpressApp(ctk.CTkFrame):
     def check_for_update(self):
         """Launches the new custom update popup window."""
         UpdatePopup(self)
-                
-    def toggle_theme(self):
-        current_mode = ctk.get_appearance_mode().lower()
-        new_mode = "Light" if current_mode == "dark" else "Dark"
-        ctk.set_appearance_mode(new_mode) # Set the global theme
 
+    def apply_theme(self, new_mode):
+        """Applies the specified theme (Light or Dark) to all widgets."""
+        
+        # --- This block updates the root window background ---
+        if new_mode == "Light":
+            self.master.configure(bg=LIGHT_BG)
+        else: # new_mode == "Dark"
+            self.master.configure(bg=DARK_BG)
+        
         # --- Update Custom Title Bar Colors ---
-        # Call the helper method to update the color variables based on the new mode
         self._set_title_bar_colors(new_mode.lower())
-        # Check if the title bar widgets exist before trying to configure them
         if hasattr(self, 'title_bar') and self.title_bar.winfo_exists():
             self.title_bar.configure(fg_color=self.title_bar_color)
             if hasattr(self, 'title_label') and self.title_label.winfo_exists():
@@ -5520,129 +5614,82 @@ class WabulkXpressApp(ctk.CTkFrame):
             if hasattr(self, 'maximize_button') and self.maximize_button.winfo_exists():
                 self.maximize_button.configure(hover_color=self.button_hover_color, text_color=self.title_text_color)
             if hasattr(self, 'close_button') and self.close_button.winfo_exists():
-                self.close_button.configure(hover_color=self.close_hover_color)
-                # Reset close button text color (as hover bind might change it to white)
+                # --- THIS IS THE FIX FOR THE RED HOVER ---
+                self.close_button.configure(hover_color=self.close_hover_color) 
                 self.close_button.configure(text_color=self.title_text_color)
         # --- End Title Bar Update ---
 
-        # Update Profile Button theme if it exists
         if hasattr(self, "profile_button"):
             self.profile_button.update_theme()
 
-        # Update Main App Widgets based on the new theme
+        # --- Update Main App Widgets based on the new theme ---
         if new_mode == "Light":
-            # Apply Light Theme Colors
-            self.configure(fg_color=LIGHT_BG) # Main app frame background
+            self.configure(fg_color=LIGHT_BG)
             self.sidebar.configure(fg_color=LIGHT_FG)
             self.header.configure(fg_color=LIGHT_FG)
-            self.main_area.configure(fg_color="transparent") # Main content area background
+            self.main_area.configure(fg_color="transparent")
             self.message_frame.configure(fg_color=LIGHT_FG)
             self.excel_frame.configure(fg_color=LIGHT_FG)
             self.live_alerts.configure(fg_color=LIGHT_INNER)
-
-            # Update Message Text Area Frame Background (only if AI animation is not active)
             if not self.animation_active:
                 self.text_area_frame.configure(fg_color=LIGHT_FG)
             self.message_text.configure(fg_color=LIGHT_INNER)
-
             self.min_delay_entry.configure(fg_color=LIGHT_INNER)
             self.max_delay_entry.configure(fg_color=LIGHT_INNER)
-
-            # Update Excel Table Colors
             if hasattr(self, 'excel_table'):
-                self.excel_table.configure(
-                    fg_color=LIGHT_FG,
-                    scrollbar_button_color="#AAAAAA",       # Lighter gray knob for scrollbar
-                    scrollbar_button_hover_color="#888888"  # Medium gray knob on hover
-                )
-                # Update individual rows in the Excel Table
+                self.excel_table.configure(fg_color=LIGHT_FG, scrollbar_button_color="#AAAAAA", scrollbar_button_hover_color="#888888")
                 for row in self.excel_table.rows:
-                    # Check if widgets still exist before configuring
-                    if "phone" in row and row["phone"].winfo_exists():
-                        row["phone"].configure(fg_color=LIGHT_INNER)
-                    if "name" in row and row["name"].winfo_exists():
-                        row["name"].configure(fg_color=LIGHT_INNER)
-                    # Configure custom columns if they exist
-                    if "custom1" in row and row["custom1"].winfo_exists():
-                        row["custom1"].configure(fg_color=LIGHT_INNER)
-                    if "custom2" in row and row["custom2"].winfo_exists():
-                        row["custom2"].configure(fg_color=LIGHT_INNER)
-                    # Update indicator background
-                    if "indicator" in row and row["indicator"].winfo_exists():
-                         # For tk.Canvas, use 'bg'
-                         row["indicator"].configure(bg=LIGHT_BG) # Match main background
-
-            # Update AI Button Colors for Light Mode
+                    if "phone" in row and row["phone"].winfo_exists(): row["phone"].configure(fg_color=LIGHT_INNER)
+                    if "name" in row and row["name"].winfo_exists(): row["name"].configure(fg_color=LIGHT_INNER)
+                    if "custom1" in row and row["custom1"].winfo_exists(): row["custom1"].configure(fg_color=LIGHT_INNER)
+                    if "custom2" in row and row["custom2"].winfo_exists(): row["custom2"].configure(fg_color=LIGHT_INNER)
+                    if "indicator" in row and row["indicator"].winfo_exists(): row["indicator"].configure(bg=LIGHT_BG)
             if hasattr(self, 'ai_button'):
-                ai_bg = LIGHT_FG
-                ai_hover = "#E0E0E0"
-                ai_press = "#CFCFCF" # Press color for light mode
+                ai_bg, ai_hover, ai_press = LIGHT_FG, "#E0E0E0", "#CFCFCF"
                 self.ai_button.configure(fg_color=ai_bg, hover_color=ai_hover)
-                # Re-bind press/release for new colors
                 self.ai_button.bind("<ButtonPress-1>", lambda e, c=ai_press: self.ai_button.configure(fg_color=c))
                 self.ai_button.bind("<ButtonRelease-1>", lambda e, c=ai_hover: self.ai_button.configure(fg_color=c))
-
         else: # new_mode == "Dark"
-            # Apply Dark Theme Colors
-            self.configure(fg_color=DARK_BG) # Main app frame background
+            self.configure(fg_color=DARK_BG)
             self.sidebar.configure(fg_color=DARK_FG)
             self.header.configure(fg_color=DARK_FG)
-            self.main_area.configure(fg_color="transparent") # Main content area background
+            self.main_area.configure(fg_color="transparent")
             self.message_frame.configure(fg_color=DARK_FG)
             self.excel_frame.configure(fg_color=DARK_FG)
             self.live_alerts.configure(fg_color=DARK_INNER)
-
-            # Update Message Text Area Frame Background (only if AI animation is not active)
             if not self.animation_active:
                 self.text_area_frame.configure(fg_color=DARK_FG)
             self.message_text.configure(fg_color=DARK_INNER)
-
             self.min_delay_entry.configure(fg_color=DARK_INNER)
             self.max_delay_entry.configure(fg_color=DARK_INNER)
-
-            # Update Excel Table Colors
             if hasattr(self, 'excel_table'):
-                self.excel_table.configure(
-                    fg_color=DARK_FG,
-                    scrollbar_button_color="#555555",       # Darker gray knob for scrollbar
-                    scrollbar_button_hover_color="#333333"  # Even darker knob on hover
-                )
-                # Update individual rows in the Excel Table
+                self.excel_table.configure(fg_color=DARK_FG, scrollbar_button_color="#555555", scrollbar_button_hover_color="#333333")
                 for row in self.excel_table.rows:
-                     # Check if widgets still exist before configuring
-                    if "phone" in row and row["phone"].winfo_exists():
-                        row["phone"].configure(fg_color=DARK_INNER)
-                    if "name" in row and row["name"].winfo_exists():
-                        row["name"].configure(fg_color=DARK_INNER)
-                    # Configure custom columns if they exist
-                    if "custom1" in row and row["custom1"].winfo_exists():
-                        row["custom1"].configure(fg_color=DARK_INNER)
-                    if "custom2" in row and row["custom2"].winfo_exists():
-                        row["custom2"].configure(fg_color=DARK_INNER)
-                    # Update indicator background
-                    if "indicator" in row and row["indicator"].winfo_exists():
-                         # For tk.Canvas, use 'bg'
-                         row["indicator"].configure(bg=DARK_BG) # Match main background
-
-            # Update AI Button Colors for Dark Mode
+                    if "phone" in row and row["phone"].winfo_exists(): row["phone"].configure(fg_color=DARK_INNER)
+                    if "name" in row and row["name"].winfo_exists(): row["name"].configure(fg_color=DARK_INNER)
+                    if "custom1" in row and row["custom1"].winfo_exists(): row["custom1"].configure(fg_color=DARK_INNER)
+                    if "custom2" in row and row["custom2"].winfo_exists(): row["custom2"].configure(fg_color=DARK_INNER)
+                    if "indicator" in row and row["indicator"].winfo_exists(): row["indicator"].configure(bg=DARK_BG)
             if hasattr(self, 'ai_button'):
-                ai_bg = DARK_FG
-                ai_hover = "#333333"
-                ai_press = "#555555" # Press color for dark mode
+                ai_bg, ai_hover, ai_press = DARK_FG, "#333333", "#555555"
                 self.ai_button.configure(fg_color=ai_bg, hover_color=ai_hover)
-                # Re-bind press/release for new colors
                 self.ai_button.bind("<ButtonPress-1>", lambda e, c=ai_press: self.ai_button.configure(fg_color=c))
                 self.ai_button.bind("<ButtonRelease-1>", lambda e, c=ai_hover: self.ai_button.configure(fg_color=c))
 
-        # Refresh Header Icons (Theme Toggle, Update)
         self.refresh_icons()
-
-        # Update Hover Hints Theme
         if hasattr(self, 'all_hints'):
             for hint in self.all_hints:
                 if hint.winfo_exists():
                     hint.update_theme()
-                
+
+    def toggle_theme(self):
+        current_mode = ctk.get_appearance_mode().lower()
+        new_mode = "Light" if current_mode == "dark" else "Dark"
+        ctk.set_appearance_mode(new_mode) # Set the global theme
+        
+        # Call the new helper function
+        self.apply_theme(new_mode)
+
     def on_close(self):
         # Ensure cleanup happens before destroying the window
         if self.sending:
@@ -5665,25 +5712,71 @@ class WabulkXpressApp(ctk.CTkFrame):
         self.master.destroy() # Destroy the main window
         sys.exit(0) # Ensure the script fully terminates
 
+def _apply_window_fixes(root_window):
+    """Applies all necessary Windows API fixes for the borderless window."""
+    try:
+        # --- 1. Get Window Handle (HWND) by Title ---
+        window_title = ctypes.c_wchar_p("WabulkXpress")
+        hwnd = ctypes.windll.user32.FindWindowW(None, window_title)
+        
+        if not hwnd:
+            print("Error: Could not find window handle by title 'WabulkXpress'. Trying fallback.")
+            root_window.update_idletasks()
+            hwnd = ctypes.windll.user32.GetParent(root_window.winfo_id())
+
+        if not hwnd:
+            print("Error: Could not get window handle.")
+            return
+
+        # --- 2. Fix Taskbar Icon and Alt-Tab ---
+        GWL_EXSTYLE = -20
+        WS_EX_APPWINDOW = 0x00040000
+        WS_EX_TOOLWINDOW = 0x00000080
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        style = (style | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
+        ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
+
+        # --- 3. Apply Rounded Corners (Win 11+) ---
+        if sys.platform == "win32":
+            corner_preference = ctypes.c_int(2) # DWMWCP_ROUND
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, 
+                33, # DWMWA_WINDOW_CORNER_PREFERENCE
+                ctypes.byref(corner_preference), 
+                ctypes.sizeof(corner_preference)
+            )
+
+    except Exception as e:
+        print(f"Error applying window fixes: {e}")
+
 if __name__ == "__main__":
     
     # Setup basic logging
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
     # --- Initialize tkinterdnd2 Root Window ---
-    # This MUST be the root window for drag & drop to work
     root = tkinterdnd2.TkinterDnD.Tk()
-
+    
     # --- Add this print statement to debug ---
     print(f"DEBUG: 'root' variable created: {root}")
 
     # Remove standard title bar for the custom one
     root.overrideredirect(True)
-    ctk.set_appearance_mode("Dark")
-    detected_mode = "dark" # We forced it
-    root_bg_color = DARK_BG
+    
+    # --- ------------------------------------ ---
+    # ---  THIS IS THE NEW FIX: HIDE WINDOW  ---
+    # --- ------------------------------------ ---
+    root.withdraw()
+    # --- ------------------------------------ ---
+
+    ctk.set_appearance_mode("System") # <-- CHANGED: Detect system theme
+    detected_mode = ctk.get_appearance_mode().lower() # Get the detected mode
+    
+    # Set the root background color based on the detected mode
+    root_bg_color = DARK_BG if detected_mode == "dark" else LIGHT_BG
     root.configure(bg=root_bg_color) # Use 'bg' for standard Tk root
-    root.title("WabulkXpress")
+    # --- This title MUST match the one in the _apply_window_fixes function ---
+    root.title("WabulkXpress") 
     root.geometry("1800x900")
 
     # Apply Icon (will show in taskbar)
@@ -5711,6 +5804,16 @@ if __name__ == "__main__":
 
     # Set the close protocol to the app's method
     root.protocol("WM_DELETE_WINDOW", app.on_close)
+
+    # --- ---------------------------------------------------- ---
+    # ---    CALL THE FIXES *BEFORE* SHOWING THE WINDOW      ---
+    # --- ---------------------------------------------------- ---
+    # (We removed the root.after() call)
+    _apply_window_fixes(root)
+    
+    # --- NOW, SHOW THE WINDOW WITH ALL FIXES APPLIED ---
+    root.deiconify()
+    # --- --------------------------------- ---
 
     try:
         root.mainloop() # Run the root window's mainloop
