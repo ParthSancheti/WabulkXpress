@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>WaBulkXpress KeyGen (Basic-Fix)</title>
+    <title>WaBulkXpress KeyGen</title>
     
     <link rel="icon" type="image/png" href="bin/icon.png" sizes="32x32">
     <link rel="icon" type="image/png" href="bin/icon.png" sizes="192x192">
@@ -11,7 +11,8 @@
     
     <link rel="manifest" href="manifest.json">
     
-    <meta name="theme-color" content="#0f172a"> <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a"> 
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -47,7 +48,37 @@
         body {
             overflow-y: auto;
             min-height: 100vh;
+            /* CHANGE 1: Added padding here to account for the Tailwind classes 
+              pt-24/pb-24 *plus* the safe area insets for a seamless layout.
+            */
+            padding-top: calc(6rem + env(safe-area-inset-top)); /* 6rem = pt-24 */
+            padding-bottom: calc(6rem + env(safe-area-inset-bottom)); /* 6rem = pb-24 */
         }
+
+        /* CHANGE 1: Adjust fixed elements to respect safe areas (notches, nav bars)
+        */
+        #menu-btn {
+            /* was top-4 left-4 */
+            top: calc(1rem + env(safe-area-inset-top));
+            left: calc(1rem + env(safe-area-inset-left));
+        }
+        #github-btn {
+            /* was top-4 right-4 */
+            top: calc(1rem + env(safe-area-inset-top));
+            right: calc(1rem + env(safe-area-inset-right));
+        }
+        #floating-menu {
+            /* was top-16 left-4 */
+            top: calc(4rem + env(safe-area-inset-top));
+            left: calc(1rem + env(safe-area-inset-left));
+        }
+        footer {
+            /* was bottom-4 left-4 right-4 */
+            bottom: calc(1rem + env(safe-area-inset-bottom));
+            left: calc(1rem + env(safe-area-inset-left));
+            right: calc(1rem + env(safe-area-inset-right));
+        }
+
 
         /* --- Glassmorphism --- */
         .glass-card {
@@ -169,45 +200,20 @@
             flex-direction: column;
             width: 100%;
         }
-        
-        /* --- FIX 1: CSS FOR EDGE-TO-EDGE UI --- */
-        body {
-            /* Adds padding for system bars */
-            padding-top: env(safe-area-inset-top);
-            padding-left: env(safe-area-inset-left);
-            padding-right: env(safe-area-inset-right);
-            /* Bottom padding is handled by pb-24 on body + footer fix */
-        }
-        
-        #menu-btn {
-            /* Applies top safe area padding */
-            top: calc(1rem + env(safe-area-inset-top)); /* 1rem is original 'top-4' */
-        }
-        
-        #github-btn {
-            /* Applies top safe area padding */
-            top: calc(1rem + env(safe-area-inset-top)); /* 1rem is original 'top-4' */
-        }
-    
-        footer {
-            /* Applies bottom safe area padding INSIDE the footer */
-            padding-bottom: env(safe-area-inset-bottom);
-        }
-        /* --- END OF FIX 1 --- */
 
     </style>
 </head>
 
-<body class="text-gray-100 p-2 flex flex-col items-center pt-24 pb-24">
+<body class="text-gray-100 p-2 flex flex-col items-center">
 
     <audio id="welcome-sound" src="bin/welcome.mp3" preload="auto"></audio>
     <audio id="success-sound" src="bin/success.mp3" preload="auto"></audio>
 
-    <button id="menu-btn" class="ripple-btn fixed top-4 left-4 p-3 rounded-full glass-card z-50 shadow-lg">
+    <button id="menu-btn" class="ripple-btn fixed p-3 rounded-full glass-card z-50 shadow-lg">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
     </button>
 
-    <div id="floating-menu" class="hidden absolute top-16 left-4 w-60 glass-card rounded-2xl shadow-2xl z-50 overflow-hidden">
+    <div id="floating-menu" class="hidden absolute w-60 glass-card rounded-2xl shadow-2xl z-50 overflow-hidden">
         <div class="flex flex-col p-2">
             <button id="menu-home" class="menu-item ripple-btn text-left w-full p-3 rounded-lg text-lg">🏠 Home</button>
             <hr class="my-2 menu-divider">
@@ -223,14 +229,14 @@
         </div>
     </div>
 
-    <a id="github-btn" href="https://github.com/ParthSancheti" target="_blank" rel="noopener noreferrer" class="ripple-btn fixed top-4 right-4 p-3 rounded-full glass-card z-50 shadow-lg flex items-center space-x-2">
+    <a id="github-btn" href="https://github.com/ParthSancheti" target="_blank" rel="noopener noreferrer" class="ripple-btn fixed p-3 rounded-full glass-card z-50 shadow-lg flex items-center space-x-2">
         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
         </svg>
         <span class="font-medium text-sm pr-1 block">Parth Sancheti</span>
     </a>
 
-    <footer class="fixed bottom-4 left-4 right-4 glass-card z-40 flex items-center justify-around shadow-lg p-1 rounded-full">
+    <footer class="fixed glass-card z-40 flex items-center justify-around shadow-lg p-1 rounded-full">
         <a id="footer-sheet-link" href="https://docs.google.com/spreadsheets/d/1Vp6--IbxADcBZFuy6QidEmnoYEFz-DkRNF8HR8ld6rw/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="ripple-btn flex-1 flex flex-col items-center p-2 rounded-2xl hover:bg-white/10 transition-colors">
             <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
             <span class="text-xs font-medium">View Sheet</span>
@@ -403,236 +409,529 @@
            <pre class="text-sm text-green-400 whitespace-pre-wrap"></pre>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const views = document.querySelectorAll('.view');
-            const menu = document.getElementById('floating-menu');
-            
-            // --- Haptic Feedback Function ---
-            function hapticFeedback(type = 'light') {
-                if ('vibrate' in navigator) {
-                    try {
-                        if (type === 'light') {
-                            navigator.vibrate(10); // A short, light vibration
-                        } else if (type === 'success') {
-                            navigator.vibrate([10, 50, 20]); // A pattern for success
-                        } else if (type === 'click') {
-                            navigator.vibrate(5); 
-                        }
-                    } catch(e) {
-                        console.warn("Haptic feedback failed", e);
-                    }
-                }
-            }
-            
-            // --- Sound Play Function ---
-            function playSound(id) {
-                try {
-                    const sound = document.getElementById(id);
-                    sound.currentTime = 0; // Rewind to start
-                    sound.play();
-                } catch (e) {
-                    console.warn("Audio play failed", e);
-                }
-            }
 
-            // --- Helper Function to Show a View ---
-            function showView(viewId, isBackAction = false) {
-                views.forEach(v => {
+    <script>
+        // --- CONFIGURATION ---
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyXcXaweoMSFLjbUW7qILp7tqKeSAa5ZoJOGdZRWiNxp5s86zL401nUZNCRKdaz0qjm/exec";
+        const STORAGE_KEY = 'WaBulkXpressKeys';
+        const DOWNLOAD_LINK = "https://github.com/ParthSancheti/WabulkXpress/releasesp";
+        const RIPPLE_DELAY = 150; // Delay for ripple effect in ms
+
+        // --- 0. Haptic Feedback & Sound ---
+        function hapticFeedback(intensity = 50) {
+            if (navigator.vibrate) {
+                navigator.vibrate(intensity);
+            }
+        }
+        
+        const welcomeSound = document.getElementById('welcome-sound');
+        const successSound = document.getElementById('success-sound');
+        
+        // --- 1. Ripple Effect ---
+        function createRipple(button, event) {
+            if (button.parentElement && button.parentElement.id === 'saved-keys-list') return;
+            const circle = document.createElement("span");
+            const diameter = Math.max(button.clientWidth, button.clientHeight);
+            const radius = diameter / 2;
+            circle.style.width = circle.style.height = `${diameter}px`;
+            circle.style.left = `${event.clientX - button.getBoundingClientRect().left - radius}px`;
+            circle.style.top = `${event.clientY - button.getBoundingClientRect().top - radius}px`;
+            circle.classList.add("ripple-effect");
+            const oldRipple = button.getElementsByClassName("ripple-effect")[0];
+            if (oldRipple) oldRipple.remove();
+            button.appendChild(circle);
+            circle.addEventListener('animationend', () => circle.remove());
+        }
+
+        // --- 2. Page Navigation (Slide Animation) ---
+        let currentViewId = null;
+        let previousViewId = 'view-home'; 
+
+        /**
+         * CHANGE 2: Added 'isPopState' flag to manage history.
+         * This flag prevents an infinite loop with the 'popstate' listener.
+         * When the user hits 'back', popstate calls showView(..., true).
+         * When a user clicks a button, we call showView(..., false).
+         */
+        function showView(viewId, isPopState = false) {
+            // 1. Hide all views and reset animation
+            const allViews = document.querySelectorAll('.view');
+            allViews.forEach(v => {
+                if (v.id !== 'view-welcome') { 
                     v.classList.add('hidden');
                     v.classList.remove('is-visible');
-                });
-                
-                const targetView = document.getElementById(viewId);
-                if (targetView) {
-                    targetView.classList.remove('hidden');
-                    setTimeout(() => targetView.classList.add('is-visible'), 10);
-                }
-
-                if (!isBackAction && history.state?.view !== viewId) {
-                    history.pushState({ view: viewId }, '', '#' + viewId);
-                }
-                
-                menu.classList.add('hidden');
-            }
-
-            // --- Handle Back/Forward Button ---
-            window.addEventListener('popstate', (event) => {
-                hapticFeedback('light'); // Vibrate on back gesture
-                if (event.state && event.state.view) {
-                    showView(event.state.view, true); 
-                } else {
-                    showView('view-home', true);
                 }
             });
+            
+            // 2. Hide the console
+            hideOutput();
+            const successFeedback = document.getElementById('success-copy-feedback');
+            if (successFeedback) successFeedback.textContent = '';
 
-            // --- Handle Initial Page Load ---
-            function initialLoad() {
-                const currentHash = window.location.hash.substring(1);
-                if (document.getElementById(currentHash)) {
-                    showView(currentHash, true);
-                } else {
-                    const hasVisited = localStorage.getItem('hasVisited');
-                    if (!hasVisited) {
-                        showView('view-welcome', true);
-                    } else {
-                        showView('view-home', true);
+            // 3. Run special logic for the view (if any)
+            if (viewId === 'view-revoke') {
+                populateRevokeList();
+            }
+
+            // 4. Show the one view we want
+            const nextView = document.getElementById(viewId);
+            if (nextView) {
+                nextView.classList.remove('hidden');
+                
+                setTimeout(() => {
+                    nextView.classList.add('is-visible');
+                }, 10); 
+                
+                if (viewId !== 'view-loading' && viewId !== 'view-welcome') {
+                    previousViewId = currentViewId; 
+                }
+                currentViewId = viewId;
+
+                // --- CHANGE 2: History Management Logic ---
+                if (!isPopState) {
+                    // We only push "sub-pages" to history.
+                    // 'view-home' is the base and should not be pushed.
+                    // This makes the back button from a sub-page go to home,
+                    // and the back button from home exit the app.
+                    if (viewId !== 'view-home' && viewId !== 'view-loading' && viewId !== 'view-welcome') {
+                        history.pushState({ view: viewId }, '', `#${viewId}`);
                     }
                 }
-                const currentViewId = document.querySelector('.view:not(.hidden)').id || 'view-home';
-                history.replaceState({ view: currentViewId }, '', '#' + currentViewId);
-            }
+                // --- End Change ---
 
-            // --- --- NAVIGATION BUTTONS --- ---
+            } else {
+                console.error(`View not found: ${viewId}`);
+            }
+        }
+
+        // --- 3. Output Console ---
+        const outputConsole = document.getElementById('output-console');
+        const outputPre = outputConsole.querySelector('pre');
+
+        function showOutput(message, isError = false) {
+            if (message.status === 'loading') return; 
+
+            outputConsole.classList.remove('hidden');
+            outputPre.textContent = JSON.stringify(message, null, 2);
+            outputPre.classList.toggle('text-green-400', !isError);
+            outputPre.classList.toggle('text-red-400', isError);
+        }
+        function hideOutput() {
+            outputConsole.classList.add('hidden');
+        }
+
+        // --- 4. Backend Call (JSONP) ---
+        function callGas(action, params = "") {
+            const url = `${GAS_URL}?action=${action}&${params}`;
+            const script = document.createElement('script');
+            script.src = url;
+            document.body.appendChild(script);
+            script.onload = () => document.body.removeChild(script);
+            script.onerror = () => {
+                document.body.removeChild(script);
+                const errorData = { status: 'error', message: 'Failed to load script from GAS.' };
+                handleResponse(errorData); 
+            };
+        }
+
+        // --- 5. localStorage (Cookie) Logic ---
+        function getSavedKeys() {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+        }
+
+        function saveKey(key, months) {
+            try {
+                const keys = getSavedKeys();
+                if (!keys.find(k => k.key === key)) {
+                    keys.unshift({ key: key, months: months, date: new Date().toISOString() });
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+                }
+            } catch (e) {
+                console.error("Failed to save key to localStorage", e);
+            }
+        }
+
+        function removeKey(key) {
+            try {
+                let keys = getSavedKeys();
+                keys = keys.filter(k => k.key !== key);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(keys));
+            } catch (e) {
+                console.error("Failed to remove key from localStorage", e);
+            }
+        }
+
+        function populateRevokeList() {
+            const keys = getSavedKeys();
+            const listContainer = document.getElementById('saved-keys-list');
+            const noKeysMsg = document.getElementById('no-keys-msg');
+            listContainer.innerHTML = ''; 
+            if (keys.length === 0) {
+                listContainer.appendChild(noKeysMsg);
+            } else {
+                keys.forEach(k => {
+                    const keyBtn = document.createElement('button');
+                    keyBtn.className = "ripple-btn w-full text-left p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors";
+                    keyBtn.innerHTML = `
+                        <span class="font-mono text-sky-300">${k.key}</span>
+                        <span class="text-xs text-gray-400 block">(${k.months}m, ${new Date(k.date).toLocaleDateString()})</span>
+                    `;
+                    keyBtn.onclick = () => {
+                        hapticFeedback(30);
+                        document.getElementById('revoke-key').value = k.key;
+                    };
+                    listContainer.appendChild(keyBtn);
+                });
+            }
+        }
+
+
+        // --- 6. Global Response Handler ---
+        function handleResponse(data) {
+            const genBtn = document.getElementById('gen-submit-btn');
+            const revokeBtn = document.getElementById('revoke-submit-btn');
             
-            document.getElementById('welcome-btn').addEventListener('click', () => {
-                hapticFeedback('success');
-                playSound('welcome-sound');
-                localStorage.setItem('hasVisited', 'true');
-                document.getElementById('view-welcome').classList.add('fading-out');
-                setTimeout(() => showView('view-home'), 500);
+            if (genBtn) genBtn.disabled = false;
+            if (revokeBtn) revokeBtn.disabled = false;
+
+            if (data.status === 'success' && data.key) {
+                // --- Key Generation Success ---
+                hideOutput(); 
+                const successView = document.getElementById('view-success');
+                const keyDisplay = document.getElementById('success-key-display');
+                
+                keyDisplay.value = data.key;
+                successView.dataset.key = data.key;
+                successView.dataset.months = data.months || 1;
+                
+                saveKey(data.key, data.months || 1);
+                
+                successSound.play().catch(e => console.log("Audio play failed"));
+                showView('view-success'); // This will push a '#view-success' state
+
+            } else if (data.status === 'success' && data.message && data.message.includes("revoked")) {
+                // --- Key Revocation Success ---
+                hideOutput();
+                const revokedKey = document.getElementById('revoke-key').value;
+                
+                if (revokedKey) {
+                    removeKey(revokedKey);
+                    populateRevokeList();
+                    document.getElementById('revoke-key').value = '';
+                    
+                    document.getElementById('revoked-key-display').value = revokedKey;
+                    document.getElementById('view-revoked').dataset.key = revokedKey;
+                    showView('view-revoked'); // This will push a '#view-revoked' state
+                } else {
+                    showView(previousViewId); 
+                    showOutput(data, false);
+                }
+
+            } else {
+                // --- Error Handling ---
+                // On error, go back to the *previous* view, not the loading screen
+                showView(previousViewId || 'view-home'); 
+                showOutput(data, true);
+            }
+        }
+
+        // --- 7. Share Message Helper ---
+        function getShareMessage(key, months) {
+            const validityText = months == 1 ? "1 month" : `${months} months`;
+            return `
+Hey! 👋 Here is your new WaBulkXpress license key:
+
+🔑 Key: ${key}
+🗓️ Valid for: ${validityText}
+
+Download the tool here:
+${DOWNLOAD_LINK}
+
+Enjoy! ✨
+            `.trim();
+        }
+        
+        // --- 8. Event Listeners ---
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- Global Ripple Listener ---
+            document.body.addEventListener('click', function(event) {
+                let target = event.target;
+                while (target && !target.classList.contains('ripple-btn')) {
+                    target = target.parentElement;
+                }
+                if (target) createRipple(target, event);
             });
 
+            // --- Welcome Button ---
+            document.getElementById('welcome-btn').addEventListener('click', () => {
+                hapticFeedback(100);
+                localStorage.setItem('hasVisited', 'true');
+                const welcomeView = document.getElementById('view-welcome');
+                
+                setTimeout(() => {
+                    welcomeView.classList.add('fading-out');
+                
+                    welcomeView.addEventListener('transitionend', () => {
+                        welcomeView.classList.add('hidden'); 
+                        welcomeView.classList.remove('is-visible');
+                        
+                        // CHANGE 2: Explicitly show 'view-home'.
+                        // This will NOT push a state, as per showView() logic,
+                        // leaving 'view-home' as the base state.
+                        showView('view-home'); 
+                    }, { once: true });
+                    
+                }, RIPPLE_DELAY);
+            });
+
+            // --- Page Navigation Buttons ---
+            // These all call showView() without the isPopState flag,
+            // so they will push history states (except for 'view-home').
             document.getElementById('btn-nav-gen').addEventListener('click', () => {
-                hapticFeedback('light');
-                showView('view-generate');
+                hapticFeedback(50);
+                setTimeout(() => showView('view-generate'), RIPPLE_DELAY);
             });
             document.getElementById('btn-nav-rev').addEventListener('click', () => {
-                hapticFeedback('light');
-                showView('view-revoke');
+                hapticFeedback(50);
+                setTimeout(() => showView('view-revoke'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back1').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back2').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back-success').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back-revoked').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
             });
 
-            // Back Buttons (use history.back() to trigger the 'popstate' listener)
-            document.getElementById('btn-nav-back1').addEventListener('click', () => history.back());
-            document.getElementById('btn-nav-back2').addEventListener('click', () => history.back());
-            document.getElementById('btn-nav-back-success').addEventListener('click', () => history.back());
-            document.getElementById('btn-nav-back-revoked').addEventListener('click', () => history.back());
-
-            // Menu Buttons
-            document.getElementById('menu-home').addEventListener('click', () => showView('view-home'));
-            document.getElementById('menu-gen').addEventListener('click', () => showView('view-generate'));
-            document.getElementById('menu-rev').addEventListener('click', () => showView('view-revoke'));
-            
-            document.getElementById('menu-btn').addEventListener('click', () => {
-                 hapticFeedback('light');
-                 menu.classList.toggle('hidden');
-            });
-
-            // --- --- RIPPLE EFFECT --- ---
-            document.querySelectorAll('.ripple-btn').forEach(button => {
-                button.addEventListener('click', function(e) {
-                    // This is your haptic feedback for *all* ripple buttons
-                    hapticFeedback('click');
-                    
-                    const rect = button.getBoundingClientRect();
-                    const ripple = document.createElement('span');
-                    const diameter = Math.max(button.clientWidth, button.clientHeight);
-                    const radius = diameter / 2;
-                    
-                    ripple.style.width = ripple.style.height = `${diameter}px`;
-                    ripple.style.left = `${e.clientX - rect.left - radius}px`;
-                    ripple.style.top = `${e.clientY - rect.top - radius}px`;
-                    ripple.classList.add('ripple-effect');
-                    
-                    button.appendChild(ripple);
-                    
-                    setTimeout(() => {
-                        ripple.remove();
-                    }, 600);
-                });
-            });
-
-            // --- --- FUNCTIONAL BUTTONS (Add your logic) --- ---
-
-            document.getElementById('copy-url-btn').addEventListener('click', () => {
-                navigator.clipboard.writeText(window.location.origin + window.location.pathname)
-                    .then(() => {
-                        const feedback = document.getElementById('footer-feedback');
-                        feedback.textContent = 'Copied URL!';
-                        feedback.style.opacity = '1';
-                        setTimeout(() => feedback.style.opacity = '0', 2000);
-                    });
-            });
-
-            document.getElementById('gen-submit-btn').addEventListener('click', () => {
-                hapticFeedback('light');
-                showView('view-loading');
+            // --- Generate Button ---
+            document.getElementById('gen-submit-btn').addEventListener('click', (e) => {
+                hapticFeedback(80);
+                const btn = e.currentTarget;
+                btn.disabled = true;
                 
-                // --- TODO: ADD YOUR KEY GENERATION LOGIC HERE ---
-                const months = document.getElementById('gen-months').value;
-                const newKey = `FAKE-${Math.random().toString(36).substr(2, 4).toUpperCase()}-${months}M`;
-                
-                setTimeout(() => {
-                    hapticFeedback('success');
-                    playSound('success-sound');
-                    document.getElementById('success-key-display').value = newKey;
-                    showView('view-success'); 
-                }, 2000);
+                setTimeout(() => { 
+                    const months = document.getElementById('gen-months').value;
+                    previousViewId = currentViewId; 
+                    showView('view-loading'); 
+                    callGas('generate', `months=${months}`);
+                }, RIPPLE_DELAY);
+            });
+
+            // --- Revoke Button ---
+            document.getElementById('revoke-submit-btn').addEventListener('click', (e) => {
+                hapticFeedback(80);
+                const btn = e.currentTarget;
+                const key = document.getElementById('revoke-key').value;
+                if (!key) {
+                    hapticFeedback(100); 
+                    showOutput({ status: 'error', message: 'Please enter a key or select one from the list.' }, true);
+                    return;
+                }
+                btn.disabled = true;
+                setTimeout(() => { 
+                    previousViewId = currentViewId; 
+                    showView('view-loading');
+                    callGas('revoke', `key=${key}`);
+                }, RIPPLE_DELAY);
             });
             
-            document.getElementById('revoke-submit-btn').addEventListener('click', () => {
-                hapticFeedback('light');
-                showView('view-loading');
-                const keyToRevoke = document.getElementById('revoke-key').value;
-                
-                // --- TODO: ADD YOUR REVOKE LOGIC HERE ---
-                
-                setTimeout(() => {
-                    hapticFeedback('success');
-                    document.getElementById('revoked-key-display').value = keyToRevoke || "XXXX-XXXX";
-                    showView('view-revoked');
-                }, 1500);
-            });
+            // --- Success Screen Buttons ---
+            const successView = document.getElementById('view-success');
+            const feedback = document.getElementById('success-copy-feedback');
 
-            // Copy/Share Buttons
             document.getElementById('success-copy-key-btn').addEventListener('click', () => {
-                const key = document.getElementById('success-key-display').value;
-                navigator.clipboard.writeText(key);
-                const feedback = document.getElementById('success-copy-feedback');
-                feedback.textContent = 'Key copied to clipboard!';
-                setTimeout(() => feedback.textContent = '', 2000);
+                hapticFeedback(30);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    navigator.clipboard.writeText(key).then(() => {
+                        feedback.textContent = 'Key copied!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
+                    });
+                }, RIPPLE_DELAY);
             });
-            
+
             document.getElementById('success-copy-msg-btn').addEventListener('click', () => {
-                const key = document.getElementById('success-key-display').value;
-                const months = document.getElementById('gen-months').value || 1;
-                const msg = `Here is your WaBulkXpress license key, valid for ${months} month(s):\n\n${key}`;
-                navigator.clipboard.writeText(msg);
-                const feedback = document.getElementById('success-copy-feedback');
-                feedback.textContent = 'Message copied to clipboard!';
-                setTimeout(() => feedback.textContent = '', 2000);
+                hapticFeedback(30);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    const months = successView.dataset.months;
+                    const message = getShareMessage(key, months);
+                    
+                    navigator.clipboard.writeText(message).then(() => {
+                        feedback.textContent = 'Message copied to clipboard!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
+                    });
+                }, RIPPLE_DELAY);
             });
 
             document.getElementById('success-share-btn').addEventListener('click', () => {
-                const key = document.getElementById('success-key-display').value;
-                const months = document.getElementById('gen-months').value || 1;
-                const msg = `Here is your WaBulkXpress license key, valid for ${months} month(s):\n\n${key}`;
-                if (navigator.share) {
-                    navigator.share({ title: 'WaBulkXpress Key', text: msg });
+                hapticFeedback(50);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    const months = successView.dataset.months;
+                    const message = getShareMessage(key, months).trim();
+
+                    if (navigator.share) {
+                        navigator.share({
+                            title: 'WaBulkXpress Key',
+                            text: message,
+                        })
+                        .then(() => console.log('Successful share'))
+                        .catch((error) => console.log('Error sharing', error));
+                    } else {
+                        feedback.textContent = 'Share not supported. Copying message...';
+                        navigator.clipboard.writeText(message).then(() => {
+                            setTimeout(() => { feedback.textContent = 'Message copied!'; }, 1000);
+                            setTimeout(() => { feedback.textContent = ''; }, 3000);
+                        });
+                    }
+                }, RIPPLE_DELAY);
+            });
+
+            // ADDED: Revoked screen copy button
+            document.getElementById('revoked-copy-key-btn').addEventListener('click', () => {
+                hapticFeedback(30);
+                const feedback = document.getElementById('revoked-copy-feedback');
+                setTimeout(() => {
+                    const key = document.getElementById('revoked-key-display').value;
+                    navigator.clipboard.writeText(key).then(() => {
+                        feedback.textContent = 'Key copied!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
+                    });
+                }, RIPPLE_DELAY);
+            });
+
+            // --- Top Menu Button Logic ---
+            const menuBtn = document.getElementById('menu-btn');
+            const menu = document.getElementById('floating-menu');
+            
+            function toggleMenu(forceClose = false) {
+                hapticFeedback(30);
+                if (forceClose) {
+                    menu.classList.add('hidden');
                 } else {
-                    const feedback = document.getElementById('success-copy-feedback');
-                    feedback.textContent = 'Share not supported. Copy message instead.';
-                    setTimeout(() => feedback.textContent = '', 2000);
+                    menu.classList.toggle('hidden');
+                }
+            }
+            
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                setTimeout(() => toggleMenu(), RIPPLE_DELAY);
+            });
+
+            document.getElementById('menu-home').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-home');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            document.getElementById('menu-gen').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-generate');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            document.getElementById('menu-rev').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-revoke');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            
+            document.getElementById('menu-sheet').addEventListener('click', () => hapticFeedback(30));
+            document.getElementById('menu-github').addEventListener('click', () => hapticFeedback(30));
+
+
+            // Click outside to close menu
+            document.addEventListener('click', (e) => {
+                if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                    toggleMenu(true);
                 }
             });
 
-            document.getElementById('revoked-copy-key-btn').addEventListener('click', () => {
-                const key = document.getElementById('revoked-key-display').value;
-                navigator.clipboard.writeText(key);
-                const feedback = document.getElementById('revoked-copy-feedback');
-                feedback.textContent = 'Key copied to clipboard!';
-                setTimeout(() => feedback.textContent = '', 2000);
+            document.getElementById('github-btn').addEventListener('click', () => {
+                hapticFeedback(30);
+            });
+
+            // --- Footer Buttons ---
+            document.getElementById('footer-sheet-link').addEventListener('click', () => {
+                hapticFeedback(30);
+            });
+
+            document.getElementById('copy-url-btn').addEventListener('click', () => {
+                hapticFeedback(30);
+                const feedback = document.getElementById('footer-feedback');
+                setTimeout(() => {
+                    navigator.clipboard.writeText(window.location.href).then(() => {
+                        feedback.style.opacity = '1';
+                        setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
+                    }).catch(err => {
+                        console.error('Failed to copy URL: ', err);
+                    });
+                }, RIPPLE_DELAY);
+            });
+
+            
+            // --- CHANGE 2: Back Button / History Handler ---
+            window.addEventListener('popstate', (event) => {
+                hapticFeedback(20);
+                if (event.state && event.state.view) {
+                    // A state exists (e.g., #view-generate), go to it.
+                    showView(event.state.view, true); // true = isPopState
+                } else {
+                    // State is null, which means we're at the "bottom" of history.
+                    // If we're not on home, go home.
+                    if (currentViewId !== 'view-home') {
+                        showView('view-home', true);
+                    }
+                    // If we *are* on home and get a null state,
+                    // we do *nothing*. This allows the browser's
+                    // default "back" action to happen, which exits the app.
+                }
             });
             
-            // --- Initialize the app ---
-            initialLoad();
+            // --- CHANGE 2: Initial Load Logic ---
+            if (localStorage.getItem('hasVisited')) {
+                document.getElementById('view-welcome').classList.add('hidden'); 
+                // Set the *base* state of the app to 'view-home'.
+                history.replaceState({ view: 'view-home' }, '', '#');
+                showView('view-home', true); // Show home, pass 'isPopState' = true
+            } else {
+                // Set the *base* state to 'view-welcome'.
+                history.replaceState({ view: 'view-welcome' }, '', '#');
+                showView('view-welcome', true); // Show welcome, pass 'isPopState' = true
+            }
+            // --- End Change ---
+
+
+            // ADDED: Play welcome sound on every load (may be blocked by browser)
+            welcomeSound.play().catch(e => console.log("Audio play failed (browser policy): ", e));
+
         });
-    </script>
-    
-    <script>
+
+        // --- PWA Service Worker Registration ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('Sw.js')
+                navigator.serviceWorker.register('/sw.js')
                     .then(registration => {
                         console.log('ServiceWorker registration successful with scope: ', registration.scope);
                     })
@@ -641,7 +940,7 @@
                     });
             });
         }
-    </script>
 
+    </script>
 </body>
 </html>
