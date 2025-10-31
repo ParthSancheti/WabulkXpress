@@ -1,0 +1,27 @@
+{
+  "name": "WaBulkXpress KeyGen",
+  "short_name": "WaKeyGen",
+  "description": "Key Generator for WaBulkXpress",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1a202c",
+  "theme_color": "#1a202c",
+  "icons": [
+    {
+      "src": "bin/Logo.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "bin/Logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "bin/Logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
