@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en" class="dark"> <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WaBulkXpress KeyGen</title>
+    
+    <link rel="icon" type="image/png" href="bin/Logo.png" sizes="32x32">
+    <link rel="icon" type="image/png" href="bin/Logo.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="bin/Logo.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            /* Your blur-UI background image */
+            background-image: url('https://images.unsplash.com/photo-1557683316-973673baf926?ixlib=rb-4.0.3&auto=format&fit=crop&w=1920&q=80'); /* Example background; replace with your own */
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+        }
+        .glass-card {
+            background: rgba(26, 32, 44, 0.3); /* Dark mode glass */
+            backdrop-filter: blur(24px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        html:not(.dark) .glass-card {
+            background: rgba(255, 255, 255, 0.2); /* Light mode glass */
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .glass-input {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: inherit;
+        }
+        html:not(.dark) .glass-input {
+            background: rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+        /* Style for hidden "pages" */
+        .view.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-gray-900 dark:text-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <button id="theme-toggle" class="fixed top-4 right-4 p-3 rounded-full glass-card z-50">
+        <svg id="theme-icon-dark" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+        </svg>
+        <svg id="theme-icon-light" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+        </svg>
+    </button>
+
+    <div class="w-full max-w-md">
+
+        <div id="view-home" class="view w-full">
+            <div class="glass-card rounded-2xl p-8 text-center">
+                <img src="bin/Logo.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 rounded-full">
+                <h1 class="text-3xl font-bold mb-8">WaBulkXpress KeyGen</h1>
+                <div class="space-y-4">
+                    <button onclick="showView('view-generate')" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300">
+                        Generate New Key
+                    </button>
+                    <button onclick="showView('view-revoke')" class="w-full bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300">
+                        Revoke Existing Key
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-generate" class="view w-full hidden">
+            <div class="glass-card rounded-2xl p-8">
+                <button onclick="showView('view-home')" class="text-blue-400 hover:underline mb-4">&larr; Back to Home</button>
+                <h2 class="text-2xl font-bold mb-6">Generate Key</h2>
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="text-gray-300">Validity (Months)</span>
+                        <input type="number" id="gen-months" value="1" class="w-full p-3 mt-1 rounded-lg glass-input">
+                    </label>
+                    <button id="gen-submit-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-all">
+                        Generate
+                    </button>
+                </div>
+
+                <div id="gen-result" class="mt-6 p-4 bg-green-900/50 rounded-lg border border-green-500 hidden" data-months="1">
+                    <p class="font-bold text-green-300 mb-2">Key Generated Successfully!</p>
+                    <div class="flex space-x-2">
+                        <input type="text" id="gen-result-key" readonly class="w-full p-2 rounded-lg glass-input bg-gray-900/70 text-green-300 font-mono" value="XXXX-XXXX">
+                        <button id="gen-copy-btn" class="bg-blue-600 text-white font-bold p-2 rounded-lg hover:bg-blue-700 transition">Copy</button>
+                    </div>
+                    <p id="copy-feedback" class="text-sm text-blue-300 mt-2 h-4"></p> </div>
+
+            </div>
+        </div>
+
+        <div id="view-revoke" class="view w-full hidden">
+            <div class="glass-card rounded-2xl p-8">
+                <button onclick="showView('view-home')" class="text-blue-400 hover:underline mb-4">&larr; Back to Home</button>
+                <h2 class="text-2xl font-bold mb-6">Revoke Key</h2>
+                <div class="space-y-4">
+                    <label class="block">
+                        <span class="text-gray-300">Key to Revoke</span>
+                        <input type="text" id="revoke-key" placeholder="XXXX-XXXX" class="w-full p-3 mt-1 rounded-lg glass-input">
+                    </label>
+                    <button id="revoke-submit-btn" class="w-full bg-red-600 text-white font-bold py-3 px-6 rounded-lg shadow-lg transform hover:scale-105 transition-all">
+                        Revoke
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="output-console" class="glass-card rounded-2xl p-4 mt-6 hidden">
+             <pre class="text-sm text-green-400 whitespace-pre-wrap"></pre>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbyXcXaweoMSFLjbUW7qILp7tqKeSAa5ZoJOGdZRWiNxp5s86zL401nUZNCRKdaz0qjm/exec"
+
+        // --- 1. Page Navigation ---
+        const views = document.querySelectorAll('.view');
+        function showView(viewId) {
+            views.forEach(view => {
+                if (view.id === viewId) {
+                    view.classList.remove('hidden');
+                } else {
+                    view.classList.add('hidden');
+                }
+            });
+            // Clear all output consoles
+            hideOutput();
+            document.getElementById('gen-result').classList.add('hidden');
+            document.getElementById('copy-feedback').textContent = '';
+        }
+
+        // --- 2. Output Console ---
+        const outputConsole = document.getElementById('output-console');
+        const outputPre = outputConsole.querySelector('pre');
+
+        function showOutput(message, isError = false) {
+            // Hide the "beautiful" result box
+            document.getElementById('gen-result').classList.add('hidden');
+            
+            // Show the "log" console
+            outputConsole.classList.remove('hidden');
+            outputPre.textContent = JSON.stringify(message, null, 2);
+            if (isError) {
+                outputPre.classList.remove('text-green-400');
+                outputPre.classList.add('text-red-400');
+            } else {
+                outputPre.classList.remove('text-red-400');
+                outputPre.classList.add('text-green-400');
+            }
+        }
+        function hideOutput() {
+            outputConsole.classList.add('hidden');
+        }
+
+        // --- 3. How to Call the Backend (The JSONP Method) ---
+        function callGas(action, params = "") {
+            const url = `${GAS_URL}?action=${action}&${params}`;
+            
+            const script = document.createElement('script');
+            script.src = url;
+            
+            document.body.appendChild(script);
+            
+            script.onload = () => {
+                document.body.removeChild(script);
+            };
+            script.onerror = () => {
+                document.body.removeChild(script);
+                showOutput({ status: 'error', message: 'Failed to load script from GAS.' }, true);
+                // Re-enable buttons on failure
+                document.getElementById('gen-submit-btn').disabled = false;
+                document.getElementById('revoke-submit-btn').disabled = false;
+            };
+        }
+
+        // --- 4. The Global Response Handler ---
+        function handleResponse(data) {
+            
+            // Check for a SUCCESSFUL KEY GENERATION
+            if (data.status === 'success' && data.key) {
+                hideOutput(); // Hide the old <pre> log
+
+                const resultBox = document.getElementById('gen-result');
+                const keyInput = document.getElementById('gen-result-key');
+                
+                keyInput.value = data.key; // Put the new key in the input
+                
+                // ======== MODIFICATION: Store the months ========
+                resultBox.dataset.months = data.months || 1; 
+                // ===============================================
+
+                resultBox.classList.remove('hidden'); // Show the "beautiful" success box
+                document.getElementById('copy-feedback').textContent = ''; // Clear old "copied" message
+            
+            } else if (data.status === 'success') {
+                // This was a 'revoke' success or other success
+                showOutput(data, false); // Use the old log
+            
+            } else {
+                // This was an error
+                showOutput(data, true); // Use the old log
+            }
+            
+            // Re-enable buttons
+            document.getElementById('gen-submit-btn').disabled = false;
+            document.getElementById('revoke-submit-btn').disabled = false;
+        }
+
+        // --- 5. Button Event Listeners ---
+        // Generate Button
+        document.getElementById('gen-submit-btn').addEventListener('click', () => {
+            const months = document.getElementById('gen-months').value;
+            showOutput({ status: 'loading', message: 'Generating key...' }, false);
+            document.getElementById('gen-submit-btn').disabled = true;
+            callGas('generate', `months=${months}`);
+        });
+
+        // Revoke Button
+        document.getElementById('revoke-submit-btn').addEventListener('click', () => {
+            const key = document.getElementById('revoke-key').value;
+            if (!key) {
+                showOutput({ status: 'error', message: 'Please enter a key to revoke.' }, true);
+                return;
+            }
+            showOutput({ status: 'loading', message: `Revoking ${key}...` }, false);
+            document.getElementById('revoke-submit-btn').disabled = true;
+            callGas('revoke', `key=${key}`);
+        });
+
+        // ======== START: MODIFIED COPY BUTTON LOGIC ========
+        // Copy Key Button
+        document.getElementById('gen-copy-btn').addEventListener('click', () => {
+            const resultBox = document.getElementById('gen-result');
+            const keyInput = document.getElementById('gen-result-key');
+            const feedback = document.getElementById('copy-feedback');
+            
+            // Get the key and the stored months
+            const key = keyInput.value;
+            const months = resultBox.dataset.months || 1;
+            
+            // Create the dynamic message
+            const validityText = months == 1 ? "1 month" : `${months} months`;
+            const messageToCopy = `Here is your WaBulkXpress key: ${key}\n\nIt is valid for ${validityText}. 🔑`;
+
+            navigator.clipboard.writeText(messageToCopy).then(() => {
+                // Success!
+                feedback.textContent = 'Copied message to clipboard!';
+                setTimeout(() => {
+                    feedback.textContent = '';
+                }, 2000); // Clear message after 2 seconds
+            }).catch(err => {
+                // Error
+                feedback.textContent = 'Failed to copy.';
+                console.error('Failed to copy text: ', err);
+            });
+        });
+        // ======== END: MODIFIED COPY BUTTON LOGIC ========
+
+        // --- 6. Dark Mode Toggle Logic ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-icon-dark');
+        const lightIcon = document.getElementById('theme-icon-light');
+        const html = document.documentElement;
+
+        // Check for saved theme preference or default to dark mode
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        if (savedTheme === 'light') {
+            html.classList.remove('dark');
+            darkIcon.classList.add('hidden');
+            lightIcon.classList.remove('hidden');
+        } else {
+            html.classList.add('dark');
+            darkIcon.classList.remove('hidden');
+            lightIcon.classList.add('hidden');
+        }
+
+        themeToggle.addEventListener('click', () => {
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+                darkIcon.classList.add('hidden');
+                lightIcon.classList.remove('hidden');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+                darkIcon.classList.remove('hidden');
+                lightIcon.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
