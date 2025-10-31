@@ -382,4 +382,251 @@
                     <div class="flex space-x-2">
                         <input type="text" id="revoked-key-display" readonly class="w-full p-3 rounded-full glass-input text-gray-200 font-mono text-xl">
                         <button id="revoked-copy-key-btn" class="ripple-btn glass-button-high-blur text-white font-bold p-3 rounded-full">
-                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><pat
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                    </div>
+                    <p id="revoked-copy-feedback" class="text-sm text-sky-300 mt-4 h-4"></p>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-loading" class="view hidden w-full">
+            <div class="glass-card rounded-3xl p-6 shadow-2xl w-full content-card flex items-center justify-center animated-content">
+                <div class="flex flex-col items-center">
+                    <img src="bin/load.gif" alt="Loading..." class="w-64 h-64">
+                </div>
+            </div>
+        </div>
+
+    </div> 
+    
+    <div id="output-console" class="glass-card rounded-2xl p-4 mt-6 hidden w-full max-w-sm">
+           <pre class="text-sm text-green-400 whitespace-pre-wrap"></pre>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const views = document.querySelectorAll('.view');
+            const menu = document.getElementById('floating-menu');
+            
+            // --- Helper Function to Show a View ---
+            function showView(viewId, isBackAction = false) {
+                // Hide all views first
+                views.forEach(v => {
+                    v.classList.add('hidden');
+                    v.classList.remove('is-visible');
+                });
+                
+                // Find and show the target view
+                const targetView = document.getElementById(viewId);
+                if (targetView) {
+                    targetView.classList.remove('hidden');
+                    // Trigger the animation
+                    setTimeout(() => targetView.classList.add('is-visible'), 10);
+                }
+
+                // If this is a new navigation (not a back button press), push to history
+                if (!isBackAction && history.state?.view !== viewId) {
+                    // We use '#' in the URL for GitHub Pages compatibility
+                    history.pushState({ view: viewId }, '', '#' + viewId);
+                }
+                
+                // Close menu if open
+                menu.classList.add('hidden');
+            }
+
+            // --- Handle Back/Forward Button ---
+            window.addEventListener('popstate', (event) => {
+                if (event.state && event.state.view) {
+                    showView(event.state.view, true); // true = is a back action
+                } else {
+                    // If no state, it's the start, go to home
+                    showView('view-home', true);
+                }
+            });
+
+            // --- Handle Initial Page Load ---
+            function initialLoad() {
+                const currentHash = window.location.hash.substring(1);
+                // Check if a specific view is in the URL
+                if (document.getElementById(currentHash)) {
+                    showView(currentHash, true);
+                } else {
+                    // Check if user has visited before
+                    const hasVisited = localStorage.getItem('hasVisited');
+                    if (!hasVisited) {
+                        showView('view-welcome', true);
+                    } else {
+                        showView('view-home', true);
+                    }
+                }
+                // Update history to have a state
+                const currentViewId = document.querySelector('.view:not(.hidden)').id || 'view-home';
+                history.replaceState({ view: currentViewId }, '', '#' + currentViewId);
+            }
+
+            // --- --- NAVIGATION BUTTONS --- ---
+            
+            // Welcome Screen
+            document.getElementById('welcome-btn').addEventListener('click', () => {
+                localStorage.setItem('hasVisited', 'true');
+                document.getElementById('view-welcome').classList.add('fading-out');
+                try {
+                    document.getElementById('welcome-sound').play();
+                } catch (e) { console.warn("Audio play failed", e); }
+                
+                setTimeout(() => showView('view-home'), 500); // Wait for fade
+            });
+
+            // Home Screen
+            document.getElementById('btn-nav-gen').addEventListener('click', () => showView('view-generate'));
+            document.getElementById('btn-nav-rev').addEventListener('click', () => showView('view-revoke'));
+
+            // Back Buttons (use history.back() to trigger the 'popstate' listener)
+            document.getElementById('btn-nav-back1').addEventListener('click', () => history.back());
+            document.getElementById('btn-nav-back2').addEventListener('click', () => history.back());
+            document.getElementById('btn-nav-back-success').addEventListener('click', () => history.back());
+            document.getElementById('btn-nav-back-revoked').addEventListener('click', () => history.back());
+
+            // Menu Buttons
+            document.getElementById('menu-home').addEventListener('click', () => showView('view-home'));
+            document.getElementById('menu-gen').addEventListener('click', () => showView('view-generate'));
+            document.getElementById('menu-rev').addEventListener('click', () => showView('view-revoke'));
+            
+            // Toggle Menu
+            document.getElementById('menu-btn').addEventListener('click', () => {
+                 menu.classList.toggle('hidden');
+            });
+
+            // --- --- RIPPLE EFFECT --- ---
+            document.querySelectorAll('.ripple-btn').forEach(button => {
+                button.addEventListener('click', function(e) {
+                    const rect = button.getBoundingClientRect();
+                    const ripple = document.createElement('span');
+                    const diameter = Math.max(button.clientWidth, button.clientHeight);
+                    const radius = diameter / 2;
+                    
+                    ripple.style.width = ripple.style.height = `${diameter}px`;
+                    ripple.style.left = `${e.clientX - rect.left - radius}px`;
+                    ripple.style.top = `${e.clientY - rect.top - radius}px`;
+                    ripple.classList.add('ripple-effect');
+                    
+                    button.appendChild(ripple);
+                    
+                    setTimeout(() => {
+                        ripple.remove();
+                    }, 600);
+                });
+            });
+
+            // --- --- FUNCTIONAL BUTTONS (Add your logic) --- ---
+
+            // Footer Copy URL
+            document.getElementById('copy-url-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(window.location.origin + window.location.pathname)
+                    .then(() => {
+                        const feedback = document.getElementById('footer-feedback');
+                        feedback.textContent = 'Copied URL!';
+                        feedback.style.opacity = '1';
+                        setTimeout(() => feedback.style.opacity = '0', 2000);
+                    });
+            });
+
+            // Example for Generate Submit
+            document.getElementById('gen-submit-btn').addEventListener('click', () => {
+                showView('view-loading');
+                
+                // --- TODO: DO YOUR KEY GENERATION LOGIC HERE ---
+                // ... (e.g., fetch, calculations) ...
+                const months = document.getElementById('gen-months').value;
+                const newKey = `FAKE-${Math.random().toString(36).substr(2, 4).toUpperCase()}-${months}M`;
+                
+                // After logic is done (using setTimeout to fake it)
+                setTimeout(() => {
+                    document.getElementById('success-key-display').value = newKey;
+                    try {
+                        document.getElementById('success-sound').play();
+                    } catch (e) { console.warn("Audio play failed", e); }
+                    
+                    showView('view-success'); 
+                }, 2000); // Fake 2-second delay
+            });
+            
+            // Example for Revoke Submit
+            document.getElementById('revoke-submit-btn').addEventListener('click', () => {
+                showView('view-loading');
+                const keyToRevoke = document.getElementById('revoke-key').value;
+                
+                // --- TODO: DO YOUR REVOKE LOGIC HERE ---
+                
+                setTimeout(() => {
+                    document.getElementById('revoked-key-display').value = keyToRevoke || "XXXX-XXXX";
+                    showView('view-revoked');
+                }, 1500);
+            });
+
+            // Copy/Share Buttons on Success Screen
+            document.getElementById('success-copy-key-btn').addEventListener('click', () => {
+                const key = document.getElementById('success-key-display').value;
+                navigator.clipboard.writeText(key);
+                const feedback = document.getElementById('success-copy-feedback');
+                feedback.textContent = 'Key copied to clipboard!';
+                setTimeout(() => feedback.textContent = '', 2000);
+            });
+            
+            document.getElementById('success-copy-msg-btn').addEventListener('click', () => {
+                const key = document.getElementById('success-key-display').value;
+                const months = document.getElementById('gen-months').value || 1;
+                const msg = `Here is your WaBulkXpress license key, valid for ${months} month(s):\n\n${key}`;
+                navigator.clipboard.writeText(msg);
+                const feedback = document.getElementById('success-copy-feedback');
+                feedback.textContent = 'Message copied to clipboard!';
+                setTimeout(() => feedback.textContent = '', 2000);
+            });
+
+            document.getElementById('success-share-btn').addEventListener('click', () => {
+                const key = document.getElementById('success-key-display').value;
+                const months = document.getElementById('gen-months').value || 1;
+                const msg = `Here is your WaBulkXpress license key, valid for ${months} month(s):\n\n${key}`;
+                if (navigator.share) {
+                    navigator.share({
+                        title: 'WaBulkXpress Key',
+                        text: msg,
+                    });
+                } else {
+                    const feedback = document.getElementById('success-copy-feedback');
+                    feedback.textContent = 'Share not supported. Copy message instead.';
+                    setTimeout(() => feedback.textContent = '', 2000);
+                }
+            });
+
+            // Copy on Revoked Screen
+            document.getElementById('revoked-copy-key-btn').addEventListener('click', () => {
+                const key = document.getElementById('revoked-key-display').value;
+                navigator.clipboard.writeText(key);
+                const feedback = document.getElementById('revoked-copy-feedback');
+                feedback.textContent = 'Key copied to clipboard!';
+                setTimeout(() => feedback.textContent = '', 2000);
+            });
+            
+            // --- Initialize the app ---
+            initialLoad();
+        });
+    </script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('Sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+
+</body>
+</html>
