@@ -11,8 +11,7 @@
     
     <link rel="manifest" href="manifest.json">
     
-    <meta name="theme-color" content="#0f172a">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a"> <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -170,23 +169,23 @@
             flex-direction: column;
             width: 100%;
         }
-
-        /* --- GOAL 1 FIX: Edge-to-Edge CSS --- */
+        
+        /* --- FIX 1: CSS FOR EDGE-TO-EDGE UI --- */
         body {
-            /* Adds padding to the top/bottom/left/right to avoid system bars */
+            /* Adds padding for system bars */
             padding-top: env(safe-area-inset-top);
-            /* pb-24 from tailwind handles bottom content padding */
             padding-left: env(safe-area-inset-left);
             padding-right: env(safe-area-inset-right);
+            /* Bottom padding is handled by pb-24 on body + footer fix */
         }
         
         #menu-btn {
-            /* Applies top safe area padding to fixed menu button */
+            /* Applies top safe area padding */
             top: calc(1rem + env(safe-area-inset-top)); /* 1rem is original 'top-4' */
         }
         
         #github-btn {
-            /* Applies top safe area padding to fixed GitHub button */
+            /* Applies top safe area padding */
             top: calc(1rem + env(safe-area-inset-top)); /* 1rem is original 'top-4' */
         }
     
@@ -194,7 +193,7 @@
             /* Applies bottom safe area padding INSIDE the footer */
             padding-bottom: env(safe-area-inset-bottom);
         }
-        /* --- End of Goal 1 Fix --- */
+        /* --- END OF FIX 1 --- */
 
     </style>
 </head>
@@ -409,38 +408,60 @@
             const views = document.querySelectorAll('.view');
             const menu = document.getElementById('floating-menu');
             
+            // --- Haptic Feedback Function ---
+            function hapticFeedback(type = 'light') {
+                if ('vibrate' in navigator) {
+                    try {
+                        if (type === 'light') {
+                            navigator.vibrate(10); // A short, light vibration
+                        } else if (type === 'success') {
+                            navigator.vibrate([10, 50, 20]); // A pattern for success
+                        } else if (type === 'click') {
+                            navigator.vibrate(5); 
+                        }
+                    } catch(e) {
+                        console.warn("Haptic feedback failed", e);
+                    }
+                }
+            }
+            
+            // --- Sound Play Function ---
+            function playSound(id) {
+                try {
+                    const sound = document.getElementById(id);
+                    sound.currentTime = 0; // Rewind to start
+                    sound.play();
+                } catch (e) {
+                    console.warn("Audio play failed", e);
+                }
+            }
+
             // --- Helper Function to Show a View ---
             function showView(viewId, isBackAction = false) {
-                // Hide all views first
                 views.forEach(v => {
                     v.classList.add('hidden');
                     v.classList.remove('is-visible');
                 });
                 
-                // Find and show the target view
                 const targetView = document.getElementById(viewId);
                 if (targetView) {
                     targetView.classList.remove('hidden');
-                    // Trigger the animation
                     setTimeout(() => targetView.classList.add('is-visible'), 10);
                 }
 
-                // If this is a new navigation (not a back button press), push to history
                 if (!isBackAction && history.state?.view !== viewId) {
-                    // We use '#' in the URL for GitHub Pages compatibility
                     history.pushState({ view: viewId }, '', '#' + viewId);
                 }
                 
-                // Close menu if open
                 menu.classList.add('hidden');
             }
 
             // --- Handle Back/Forward Button ---
             window.addEventListener('popstate', (event) => {
+                hapticFeedback('light'); // Vibrate on back gesture
                 if (event.state && event.state.view) {
-                    showView(event.state.view, true); // true = is a back action
+                    showView(event.state.view, true); 
                 } else {
-                    // If no state, it's the start, go to home
                     showView('view-home', true);
                 }
             });
@@ -448,11 +469,9 @@
             // --- Handle Initial Page Load ---
             function initialLoad() {
                 const currentHash = window.location.hash.substring(1);
-                // Check if a specific view is in the URL
                 if (document.getElementById(currentHash)) {
                     showView(currentHash, true);
                 } else {
-                    // Check if user has visited before
                     const hasVisited = localStorage.getItem('hasVisited');
                     if (!hasVisited) {
                         showView('view-welcome', true);
@@ -460,27 +479,28 @@
                         showView('view-home', true);
                     }
                 }
-                // Update history to have a state
                 const currentViewId = document.querySelector('.view:not(.hidden)').id || 'view-home';
                 history.replaceState({ view: currentViewId }, '', '#' + currentViewId);
             }
 
             // --- --- NAVIGATION BUTTONS --- ---
             
-            // Welcome Screen
             document.getElementById('welcome-btn').addEventListener('click', () => {
+                hapticFeedback('success');
+                playSound('welcome-sound');
                 localStorage.setItem('hasVisited', 'true');
                 document.getElementById('view-welcome').classList.add('fading-out');
-                try {
-                    document.getElementById('welcome-sound').play();
-                } catch (e) { console.warn("Audio play failed", e); }
-                
-                setTimeout(() => showView('view-home'), 500); // Wait for fade
+                setTimeout(() => showView('view-home'), 500);
             });
 
-            // Home Screen
-            document.getElementById('btn-nav-gen').addEventListener('click', () => showView('view-generate'));
-            document.getElementById('btn-nav-rev').addEventListener('click', () => showView('view-revoke'));
+            document.getElementById('btn-nav-gen').addEventListener('click', () => {
+                hapticFeedback('light');
+                showView('view-generate');
+            });
+            document.getElementById('btn-nav-rev').addEventListener('click', () => {
+                hapticFeedback('light');
+                showView('view-revoke');
+            });
 
             // Back Buttons (use history.back() to trigger the 'popstate' listener)
             document.getElementById('btn-nav-back1').addEventListener('click', () => history.back());
@@ -493,14 +513,17 @@
             document.getElementById('menu-gen').addEventListener('click', () => showView('view-generate'));
             document.getElementById('menu-rev').addEventListener('click', () => showView('view-revoke'));
             
-            // Toggle Menu
             document.getElementById('menu-btn').addEventListener('click', () => {
+                 hapticFeedback('light');
                  menu.classList.toggle('hidden');
             });
 
             // --- --- RIPPLE EFFECT --- ---
             document.querySelectorAll('.ripple-btn').forEach(button => {
                 button.addEventListener('click', function(e) {
+                    // This is your haptic feedback for *all* ripple buttons
+                    hapticFeedback('click');
+                    
                     const rect = button.getBoundingClientRect();
                     const ripple = document.createElement('span');
                     const diameter = Math.max(button.clientWidth, button.clientHeight);
@@ -521,7 +544,6 @@
 
             // --- --- FUNCTIONAL BUTTONS (Add your logic) --- ---
 
-            // Footer Copy URL
             document.getElementById('copy-url-btn').addEventListener('click', () => {
                 navigator.clipboard.writeText(window.location.origin + window.location.pathname)
                     .then(() => {
@@ -532,40 +554,37 @@
                     });
             });
 
-            // Example for Generate Submit
             document.getElementById('gen-submit-btn').addEventListener('click', () => {
+                hapticFeedback('light');
                 showView('view-loading');
                 
-                // --- TODO: DO YOUR KEY GENERATION LOGIC HERE ---
-                // ... (e.g., fetch, calculations) ...
+                // --- TODO: ADD YOUR KEY GENERATION LOGIC HERE ---
                 const months = document.getElementById('gen-months').value;
                 const newKey = `FAKE-${Math.random().toString(36).substr(2, 4).toUpperCase()}-${months}M`;
                 
-                // After logic is done (using setTimeout to fake it)
                 setTimeout(() => {
+                    hapticFeedback('success');
+                    playSound('success-sound');
                     document.getElementById('success-key-display').value = newKey;
-                    try {
-                        document.getElementById('success-sound').play();
-                    } catch (e) { console.warn("Audio play failed", e); }
-                    
                     showView('view-success'); 
-                }, 2000); // Fake 2-second delay
+                }, 2000);
             });
             
-            // Example for Revoke Submit
             document.getElementById('revoke-submit-btn').addEventListener('click', () => {
+                hapticFeedback('light');
                 showView('view-loading');
                 const keyToRevoke = document.getElementById('revoke-key').value;
                 
-                // --- TODO: DO YOUR REVOKE LOGIC HERE ---
+                // --- TODO: ADD YOUR REVOKE LOGIC HERE ---
                 
                 setTimeout(() => {
+                    hapticFeedback('success');
                     document.getElementById('revoked-key-display').value = keyToRevoke || "XXXX-XXXX";
                     showView('view-revoked');
                 }, 1500);
             });
 
-            // Copy/Share Buttons on Success Screen
+            // Copy/Share Buttons
             document.getElementById('success-copy-key-btn').addEventListener('click', () => {
                 const key = document.getElementById('success-key-display').value;
                 navigator.clipboard.writeText(key);
@@ -589,10 +608,7 @@
                 const months = document.getElementById('gen-months').value || 1;
                 const msg = `Here is your WaBulkXpress license key, valid for ${months} month(s):\n\n${key}`;
                 if (navigator.share) {
-                    navigator.share({
-                        title: 'WaBulkXpress Key',
-                        text: msg,
-                    });
+                    navigator.share({ title: 'WaBulkXpress Key', text: msg });
                 } else {
                     const feedback = document.getElementById('success-copy-feedback');
                     feedback.textContent = 'Share not supported. Copy message instead.';
@@ -600,7 +616,6 @@
                 }
             });
 
-            // Copy on Revoked Screen
             document.getElementById('revoked-copy-key-btn').addEventListener('click', () => {
                 const key = document.getElementById('revoked-key-display').value;
                 navigator.clipboard.writeText(key);
