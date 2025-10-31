@@ -69,8 +69,8 @@
         }
         #floating-menu {
             /* was top-16 left-4 */
-            top: calc(4rem + env(safe-area-inset-top));
-            left: calc(1rem + env(safe-area-inset-left));
+            top: 4rem; /* This is 'top-16' */
+            left: 1rem; /* This is 'left-4' */
         }
         footer {
             /* was bottom-4 left-4 right-4 */
@@ -204,7 +204,7 @@
     </style>
 </head>
 
-<body class="text-gray-100 p-2 flex flex-col items-center">
+<body class="text-gray-100 p-2 flex flex-col items-center pt-24 pb-24">
 
     <audio id="welcome-sound" src="bin/welcome.mp3" preload="auto"></audio>
     <audio id="success-sound" src="bin/success.mp3" preload="auto"></audio>
@@ -615,6 +615,7 @@
                 const revokedKey = document.getElementById('revoke-key').value;
                 
                 if (revokedKey) {
+                    successSound.play().catch(e => console.log("Audio play failed")); // <-- ADD THIS LINE
                     removeKey(revokedKey);
                     populateRevokeList();
                     document.getElementById('revoke-key').value = '';
@@ -675,11 +676,13 @@ Enjoy! ✨
                     welcomeView.addEventListener('transitionend', () => {
                         welcomeView.classList.add('hidden'); 
                         welcomeView.classList.remove('is-visible');
-                        
-                        // CHANGE 2: Explicitly show 'view-home'.
-                        // This will NOT push a state, as per showView() logic,
-                        // leaving 'view-home' as the base state.
+
+                        // Show 'view-home'. (isPopState = false)
                         showView('view-home'); 
+                        // We MUST replace the history state, so 'welcome' is
+                        // permanently replaced by 'home' as the base state.
+                        history.replaceState({ view: 'view-home' }, '', '#');
+
                     }, { once: true });
                     
                 }, RIPPLE_DELAY);
@@ -894,18 +897,34 @@ Enjoy! ✨
             // --- CHANGE 2: Back Button / History Handler ---
             window.addEventListener('popstate', (event) => {
                 hapticFeedback(20);
+                
+                // This event fires *after* the state has popped.
+                // event.state is the *new* state we just navigated to.
+                
                 if (event.state && event.state.view) {
-                    // A state exists (e.g., #view-generate), go to it.
-                    showView(event.state.view, true); // true = isPopState
-                } else {
-                    // State is null, which means we're at the "bottom" of history.
-                    // If we're not on home, go home.
-                    if (currentViewId !== 'view-home') {
+                    if (event.state.view === 'view-home' || event.state.view === 'view-welcome') {
+                        // The new state is 'home' or 'welcome'. Show 'home'.
+                        // This is the base of our stack.
                         showView('view-home', true);
+                    } else {
+                        // The new state is a sub-page (e.g., 'view-generate').
+                        // The user wants to go *directly* to home.
+                        // So, we ignore event.state.view and show 'view-home'.
+                        showView('view-home', true);
+                        
+                        // Now, the browser's history stack is "off".
+                        // e.g., stack was [Home, Gen, Success]. Back press.
+                        // Browser pops 'Success', event.state is 'Gen'.
+                        // We show 'Home'.
+                        // The browser's *current* history entry is 'Gen'.
+                        // We must replace it with 'Home' so the *next*
+                        // back-press goes to the *real* 'Home' (base) state.
+                        history.replaceState({ view: 'view-home' }, '', '#');
                     }
-                    // If we *are* on home and get a null state,
-                    // we do *nothing*. This allows the browser's
-                    // default "back" action to happen, which exits the app.
+                } else {
+                    // This case should not be reachable if we always
+                    // have a base state. But if it is, default to home.
+                    showView('view-home', true);
                 }
             });
             
