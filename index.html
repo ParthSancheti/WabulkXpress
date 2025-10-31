@@ -3,36 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WaBulkXpress KeyGen</title>
+    <title>WaBulkXpress KeyGen (Basic-Fix)</title>
     
     <link rel="icon" type="image/png" href="bin/icon.png" sizes="32x32">
     <link rel="icon" type="image/png" href="bin/icon.png" sizes="192x192">
     <link rel="apple-touch-icon" href="bin/icon.png">
     
+    <link rel="manifest" href="manifest.json">
+    
+    <meta name="theme-color" content="#0f172a"> <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
     <script src="https://cdn.tailwindcss.com"></script>
 
-
     <style>
-        #view-generate .glass-card,
-        #view-revoke .glass-card,
-        #view-success .glass-card {
-            margin-top: 0 !important;
-        }
-        .glass-card {
-        backdrop-filter: blur(20px);
-        background: rgba(20, 40, 20, 0.45);
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-        margin-top: 0 !important;
-        }
-
         /* --- Base Setup --- */
-        body {
-            /* The pseudo-element ::before handles the blurred background */
-        }
-        /* --- NEW: Disable Scrolling --- */
-
-
-        /* --- Welcome Screen Animation --- */
         body::before {
             content: '';
             position: fixed;
@@ -41,14 +25,34 @@
             background-image: url('bin/background.png');
             background-size: cover;
             background-position: center;
-            filter: blur(5px);
-            transform: scale(1.05);
+            filter: blur(10px); 
+            transform: scale(1.15);
+            animation: backgroundMove 30s ease-in-out infinite alternate;
         }
         
+        @keyframes backgroundMove {
+            0% {
+                transform: scale(1.15) translateX(0%) translateY(0%);
+            }
+            100% {
+                transform: scale(1.15) translateX(3%) translateY(3%);
+            }
+        }
+        
+        /* --- Scrolling --- */
+        html {
+            overflow: hidden;
+            height: 100vh;
+        }
+        body {
+            overflow-y: auto;
+            min-height: 100vh;
+        }
+
         /* --- Glassmorphism --- */
         .glass-card {
             background: rgba(51, 65, 85, 0.4); /* slate-700 @ 40% */
-            backdrop-filter: blur(32px) saturate(180%);
+            backdrop-filter: blur(40px) saturate(180%);
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
@@ -60,7 +64,7 @@
 
         .glass-button-high-blur {
             background: rgba(51, 65, 85, 0.3);
-            backdrop-filter: blur(48px) saturate(200%);
+            backdrop-filter: blur(60px) saturate(200%);
             border: 1px solid rgba(255, 255, 255, 0.1);
             transition: all 0.3s ease;
         }
@@ -68,33 +72,31 @@
             background: rgba(51, 65, 85, 0.5);
             transform: scale(1.03);
         }
+        .glass-button-high-blur:active {
+            transform: scale(0.95);
+        }
+        .glass-button-high-blur:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+            transform: scale(1); 
+        }
 
         /* --- Page View & Animations --- */
         .view {
             width: 100%;
-            transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .view.hidden {
-            opacity: 0;
-            transform: scale(0.95);
-            pointer-events: none;
             display: none;
         }
 
-        .animate-slide-in {
-            animation: slideIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        .animated-content {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
         }
-        .animate-slide-out {
-            animation: slideOut 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateY(20px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes slideOut {
-            from { opacity: 1; transform: translateY(0) scale(1); }
-            to { opacity: 0; transform: translateY(-10px) scale(0.98); }
+        .view.is-visible .animated-content {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         /* --- Welcome Screen Animation --- */
@@ -103,12 +105,44 @@
             inset: 0;
             z-index: 100;
             transition: opacity 0.5s ease-out;
+            display: none; 
+        }
+        #view-welcome:not(.hidden) {
+            display: flex; 
+        }
+        #view-welcome .animated-content {
+            transition-delay: 0.2s; 
         }
         #view-welcome.fading-out {
             opacity: 0;
             pointer-events: none;
         }
+        #view-welcome.fading-out .animated-content {
+            opacity: 0;
+            transform: translateY(15px);
+            transition: all 0.3s ease-in;
+        }
         
+        /* --- Floating Menu --- */
+        #floating-menu {
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-origin: top left;
+        }
+        #floating-menu.hidden {
+            opacity: 0;
+            transform: scale(0.9) translateY(-10px);
+            pointer-events: none;
+        }
+        .menu-divider {
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        .menu-item {
+            transition: background-color 0.2s ease;
+        }
+        .menu-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
         /* --- Ripple Effect --- */
         .ripple-btn {
             position: relative;
@@ -127,10 +161,19 @@
                 opacity: 0;
             }
         }
+
+        /* --- Card Sizing --- */
+        .content-card {
+            min-height: 26rem; /* 416px */
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+        }
+
     </style>
 </head>
 
-<body class="text-gray-100 min-h-screen flex justify-start items-start p-4">
+<body class="text-gray-100 p-2 flex flex-col items-center pt-24 pb-24">
 
     <audio id="welcome-sound" src="bin/welcome.mp3" preload="auto"></audio>
     <audio id="success-sound" src="bin/success.mp3" preload="auto"></audio>
@@ -139,43 +182,71 @@
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
     </button>
 
+    <div id="floating-menu" class="hidden absolute top-16 left-4 w-60 glass-card rounded-2xl shadow-2xl z-50 overflow-hidden">
+        <div class="flex flex-col p-2">
+            <button id="menu-home" class="menu-item ripple-btn text-left w-full p-3 rounded-lg text-lg">🏠 Home</button>
+            <hr class="my-2 menu-divider">
+            <button id="menu-gen" class="menu-item ripple-btn text-left w-full p-3 rounded-lg text-lg">✨ Generate Key</button>
+            <button id="menu-rev" class="menu-item ripple-btn text-left w-full p-3 rounded-lg text-lg">🚫 Revoke Key</button>
+            <hr class="my-2 menu-divider">
+            <a id="menu-sheet" href="https://docs.google.com/spreadsheets/d/1Vp6--IbxADcBZFuy6QidEmnoYEFz-DkRNF8HR8ld6rw/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="menu-item ripple-btn block w-full p-3 rounded-lg text-lg">
+                📊 View Sheet
+            </a>
+            <a id="menu-github" href="https://github.com/ParthSancheti" target="_blank" rel="noopener noreferrer" class="menu-item ripple-btn block w-full p-3 rounded-lg text-lg">
+                👋 Get in Touch
+            </a>
+        </div>
+    </div>
+
     <a id="github-btn" href="https://github.com/ParthSancheti" target="_blank" rel="noopener noreferrer" class="ripple-btn fixed top-4 right-4 p-3 rounded-full glass-card z-50 shadow-lg flex items-center space-x-2">
         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 16 16">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
         </svg>
-        <span class="font-medium text-sm pr-1">Parth Sancheti</span>
+        <span class="font-medium text-sm pr-1 block">Parth Sancheti</span>
     </a>
 
-    <div class="w-full max-w-xl">
+    <footer class="fixed bottom-4 left-4 right-4 glass-card z-40 flex items-center justify-around shadow-lg p-1 rounded-full">
+        <a id="footer-sheet-link" href="https://docs.google.com/spreadsheets/d/1Vp6--IbxADcBZFuy6QidEmnoYEFz-DkRNF8HR8ld6rw/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="ripple-btn flex-1 flex flex-col items-center p-2 rounded-2xl hover:bg-white/10 transition-colors">
+            <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+            <span class="text-xs font-medium">View Sheet</span>
+        </a>
+        
+        <button id="copy-url-btn" class="ripple-btn flex-1 flex flex-col items-center p-2 rounded-2xl hover:bg-white/10 transition-colors">
+            <svg class="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101"></path></svg>
+            <span class="text-xs font-medium">Copy URL</span>
+        </button>
+        <p id="footer-feedback" class="absolute -top-10 left-1/2 -translate-x-1/2 bg-sky-600 text-white text-sm py-1 px-3 rounded-full opacity-0 transition-all pointer-events-none">Copied!</p>
+    </footer>
 
-        <div id="view-welcome" class="view hidden glass-card flex flex-col items-center justify-start text-center p-8">
-            <div class="flex-grow flex flex-col items-center justify-start">
+    <div id="view-wrapper" class="w-full max-w-sm">
+
+        <div id="view-welcome" class="view hidden glass-card flex-col items-center justify-center text-center p-6 w-full">
+            <div class="flex-grow flex flex-col items-center justify-center animated-content">
                 <img src="bin/icon.png" alt="Logo" class="w-32 h-32 mx-auto mb-6 rounded-3xl shadow-lg">
                 <h1 class="text-4xl font-bold mb-2">👋 Welcome to</h1>
                 <h2 class="text-2xl font-light text-sky-300">WaBulkXpress KeyGen</h2>
                 <p class="mt-4 text-gray-300">Your tool for managing access keys.</p>
             </div>
-            <button id="welcome-btn" class="ripple-btn w-full glass-button-high-blur text-white font-bold py-4 px-6 rounded-full shadow-lg duration-300 flex items-center justify-start text-lg">
-                Get Started
-                <svg class="w-6 h-6 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+            <button id="welcome-btn" class="ripple-btn absolute bottom-8 right-8 glass-button-high-blur text-white font-bold py-3 px-5 rounded-full shadow-lg duration-300 text-lg animated-content">
+                Get Started &rarr;
             </button>
         </div>
 
-        <div id="view-home" class="view hidden mt-20">
-            <div class="glass-card rounded-3xl p-8 text-center shadow-2xl">
-                <div class="flex items-center justify-start space-x-4 mb-6">
-                    <img src="bin/icon.png" alt="Logo" class="w-20 h-20 rounded-2xl shadow-lg">
+        <div id="view-home" class="view hidden w-full">
+            <div class="glass-card rounded-3xl px-6 py-6 text-center shadow-2xl content-card justify-start animated-content">
+                <div class="flex flex-col items-center justify-center space-y-4 mb-6">
+                    <img src="bin/icon.png" alt="Logo" class="w-24 h-24 rounded-2xl shadow-lg">
                     <div>
-                        <h1 class="text-3xl font-bold text-left">WaBulkXpress</h1>
-                        <p class="text-xl text-gray-300 text-left">🔑 Key Generator</p>
+                        <h1 class="text-4xl font-bold text-center">WaBulkXpress</h1>
+                        <p class="text-2xl text-gray-300 text-center">🔑 Key Generator</p>
                     </div>
                 </div>
                 
                 <div class="space-y-4 mt-10">
-                    <button id="btn-nav-gen" class="ripple-btn w-full bg-sky-600 text-white font-bold py-4 px-6 rounded-full shadow-lg transform hover:scale-105 hover:bg-sky-700 transition-all duration-300 text-lg">
+                    <button id="btn-nav-gen" class="ripple-btn w-full glass-button-high-blur text-white font-bold py-3 px-6 rounded-full shadow-lg text-xl">
                         ✨ Generate New Key
                     </button>
-                    <button id="btn-nav-rev" class="ripple-btn w-full bg-rose-600 text-white font-bold py-4 px-6 rounded-full shadow-lg transform hover:scale-105 hover:bg-rose-700 transition-all duration-300 text-lg">
+                    <button id="btn-nav-rev" class="ripple-btn w-full glass-button-high-blur text-white font-bold py-3 px-6 rounded-full shadow-lg text-xl">
                         🚫 Revoke Existing Key
                     </button>
                 </div>
@@ -183,104 +254,142 @@
         </div>
 
         <div id="view-generate" class="view w-full hidden">
-            <div class="glass-card rounded-3xl px-8 pt-4 pb-8 shadow-2xl">
-                <button id="btn-nav-back1" class="ripple-btn text-sky-400 hover:underline mb-4">&larr; Back to Home 🏠</button>
-                <h2 class="text-2xl font-bold mb-6">Generate Key</h2>
-                <div class="space-y-4">
-                    <label class="block">
-                        <span class="text-gray-300">🗓️ Validity (Months)</span>
-                        <input type="number" id="gen-months" value="1" class="w-full p-3 mt-1 rounded-full glass-input text-lg">
-                    </label>
-                    <button id="gen-submit-btn" class="ripple-btn w-full bg-sky-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition-all text-lg">
-                        Generate
-                    </button>
+            <div class="glass-card rounded-3xl px-6 pt-6 pb-6 shadow-2xl content-card animated-content">
+                <button id="btn-nav-back1" class="ripple-btn glass-button-high-blur text-white font-semibold py-2 px-4 rounded-full shadow-lg flex items-center mb-6 self-start">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Home
+                </button>
+                
+                <div class="flex-grow flex flex-col justify-start pt-6">
+                    <h2 class="text-3xl font-bold mb-6">✨ Generate Key</h2>
+                    <div class="space-y-4">
+                        <label class="block">
+                            <span class="text-lg text-gray-300">🗓️ Validity (Months)</span>
+                            <input type="number" id="gen-months" value="1" class="w-full p-3 mt-1 rounded-full glass-input text-xl">
+                        </label>
+                        <button id="gen-submit-btn" class="ripple-btn w-full glass-button-high-blur text-white font-bold py-3 px-6 rounded-full shadow-lg text-xl">
+                            Generate
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
         <div id="view-revoke" class="view w-full hidden">
-            <div class="glass-card rounded-3xl px-8 pt-4 pb-8 shadow-2xl">
-                <button id="btn-nav-back2" class="ripple-btn text-sky-400 hover:underline mb-4">&larr; Back to Home 🏠</button>
-                <h2 class="text-2xl font-bold mb-6">Revoke Key</h2>
+            <div class="glass-card rounded-3xl px-6 pt-6 pb-6 shadow-2xl content-card animated-content">
+                <button id="btn-nav-back2" class="ripple-btn glass-button-high-blur text-white font-semibold py-2 px-4 rounded-full shadow-lg flex items-center mb-6 self-start">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Home
+                </button>
 
-                <div class="mb-6">
-                    <h3 class="text-gray-300 mb-2">📋 Your Generated Keys:</h3>
-                    <div id="saved-keys-list" class="max-h-32 overflow-y-auto space-y-2 p-2 bg-black/20 rounded-lg">
-                        <p id="no-keys-msg" class="text-gray-400 text-sm">No saved keys found.</p>
+                <div class="flex-grow flex flex-col justify-start pt-2">
+                    <h2 class="text-2xl font-bold mb-4">🚫 Revoke Key</h2>
+
+                    <div class="mb-4">
+                        <h3 class="text-base text-gray-300 mb-2">📋 Your Generated Keys:</h3>
+                        <div id="saved-keys-list" class="max-h-32 overflow-y-auto space-y-2 p-2 bg-black/20 rounded-lg">
+                            <p id="no-keys-msg" class="text-gray-400 text-sm">No saved keys found.</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <label class="block">
+                            <span class="text-base text-gray-300">🔑 Key to Revoke</span>
+                            <input type="text" id="revoke-key" placeholder="XXXX-XXXX" class="w-full p-3 mt-1 rounded-full glass-input text-lg">
+                        </label>
+                        <button id="revoke-submit-btn" class="ripple-btn w-full glass-button-high-blur text-white font-bold py-3 px-6 rounded-full shadow-lg text-lg">
+                            Revoke
+                        </button>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="space-y-4">
-                    <label class="block">
-                        <span class="text-gray-300">🔑 Key to Revoke</span>
-                        <input type="text" id="revoke-key" placeholder="XXXX-XXXX" class="w-full p-3 mt-1 rounded-full glass-input text-lg">
-                    </label>
-                    <button id="revoke-submit-btn" class="ripple-btn w-full bg-rose-600 text-white font-bold py-3 px-6 rounded-full shadow-lg transform hover:scale-105 transition-all text-lg">
-                        Revoke
-                    </button>
+        <div id="view-success" class="view hidden w-full" data-key="" data-months="">
+            <div class="glass-card rounded-3xl px-6 pt-6 pb-6 shadow-2xl text-center w-full content-card animated-content">
+                <button id="btn-nav-back-success" class="ripple-btn glass-button-high-blur text-white font-semibold py-2 px-4 rounded-full shadow-lg flex items-center mb-6 self-start">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Home
+                </button>
+                
+                <div class="flex-grow flex flex-col justify-start pt-6">
+                    <div class="flex items-center justify-center space-x-3 mb-6">
+                        <span class="text-5xl">🎉🥳</span>
+                        <h2 class="text-4xl font-bold">Key Generated!</h2>
+                    </div>
+
+                    <div class="flex space-x-2">
+                        <input type="text" id="success-key-display" readonly class="w-full p-3 rounded-full glass-input text-green-300 font-mono text-xl">
+                        <button id="success-copy-key-btn" class="ripple-btn glass-button-high-blur text-white font-bold p-3 rounded-full">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                    </div>
+
+                    <div class="mt-6 flex flex-row space-x-2 justify-center">
+                        <button id="success-copy-msg-btn" class="ripple-btn p-3 px-6 font-bold rounded-full glass-button-high-blur text-lg">
+                            Copy 📝
+                        </button>
+                        <button id="success-share-btn" class="ripple-btn p-3 px-6 font-bold rounded-full glass-button-high-blur text-lg">
+                            Share 🚀
+                        </button>
+                    </div>
+                    
+                    <p id="success-copy-feedback" class="text-sm text-sky-300 mt-4 h-4"></p>
                 </div>
             </div>
         </div>
 
-        <div id="view-success" class="view hidden" data-key="" data-months="">
-                <div class="glass-card rounded-3xl px-8 pt-4 pb-8 shadow-2xl text-center">                <button id="btn-nav-back-success" class="ripple-btn text-sky-400 hover:underline mb-4 float-left">&larr; Back to Home 🏠</button>
-                <div class="clear-both"></div>
+        <div id="view-revoked" class="view hidden w-full" data-key="">
+            <div class="glass-card rounded-3xl px-6 pt-6 pb-6 shadow-2xl text-center w-full content-card animated-content">
+                <button id="btn-nav-back-revoked" class="ripple-btn glass-button-high-blur text-white font-semibold py-2 px-4 rounded-full shadow-lg flex items-center mb-6 self-start">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    Back to Home
+                </button>
                 
-                <div class="flex items-center justify-startspace-x-3 mb-6 mt-4">
-                    <span class="text-5xl">🎉</span>
-                    <h2 class="text-3xl font-bold">Key Generated!</h2>
+                <div class="flex-grow flex flex-col justify-start pt-6">
+                    <div class="flex items-center justify-center space-x-3 mb-6">
+                        <span class="text-5xl">🚫✅</span>
+                        <h2 class="text-4xl font-bold">Key Revoked!</h2>
+                    </div>
+                    <p class="text-lg text-gray-300 mb-4">The following key is now invalid:</p>
+                    
+                    <div class="flex space-x-2">
+                        <input type="text" id="revoked-key-display" readonly class="w-full p-3 rounded-full glass-input text-gray-200 font-mono text-xl">
+                        <button id="revoked-copy-key-btn" class="ripple-btn glass-button-high-blur text-white font-bold p-3 rounded-full">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                        </button>
+                    </div>
+                    <p id="revoked-copy-feedback" class="text-sm text-sky-300 mt-4 h-4"></p>
                 </div>
-
-                <div class="flex space-x-2">
-                    <input type="text" id="success-key-display" readonly class="w-full p-3 rounded-full glass-input text-green-300 font-mono text-lg">
-                    <button id="success-copy-key-btn" class="ripple-btn bg-sky-600 text-white font-bold p-3 rounded-full hover:bg-sky-700 transition">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                <div class="mt-6 bg-black/20 rounded-full flex overflow-hidden">
-                    <button id="success-copy-msg-btn" class="ripple-btn w-1/2 p-4 font-bold text-sky-300 hover:bg-black/30 transition-colors">
-                        Copy Message 📝
-                    </button>
-                    <button id="success-share-btn" class="ripple-btn w-1/2 p-4 font-bold text-teal-300 bg-black/10 hover:bg-black/30 transition-colors">
-                        Share 🚀
-                    </button>
-                </div>
-                
-                <p id="success-copy-feedback" class="text-sm text-sky-300 mt-4 h-4"></p>
             </div>
         </div>
 
-        <div id="output-console" class="glass-card rounded-2xl p-4 mt-6 hidden">
-             <pre class="text-sm text-green-400 whitespace-pre-wrap"></pre>
+        <div id="view-loading" class="view hidden w-full">
+            <div class="glass-card rounded-3xl p-6 shadow-2xl w-full content-card flex items-center justify-center animated-content">
+                <div class="flex flex-col items-center">
+                    <img src="bin/load.gif" alt="Loading..." class="w-64 h-64">
+                </div>
+            </div>
         </div>
+
+    </div> 
+    
+    <div id="output-console" class="glass-card rounded-2xl p-4 mt-6 hidden w-full max-w-sm">
+           <pre class="text-sm text-green-400 whitespace-pre-wrap"></pre>
     </div>
-
-
-    <footer class="fixed bottom-4 left-4 right-4 glass-card z-40 flex items-center justify-around shadow-lg p-2 rounded-full">
-        <a href="https://docs.google.com/spreadsheets/d/1Vp6--IbxADcBZFuy6QidEmnoYEFz-DkRNF8HR8ld6rw/edit?gid=0#gid=0" target="_blank" rel="noopener noreferrer" class="ripple-btn flex-1 flex flex-col items-center p-3 rounded-2xl hover:bg-white/10 transition-colors">
-            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-            <span class="text-xs font-medium">View Sheet</span>
-        </a>
-        
-        <button id="copy-url-btn" class="ripple-btn flex-1 flex flex-col items-center p-3 rounded-2xl hover:bg-white/10 transition-colors">
-            <svg class="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101"></path></svg>
-            <span class="text-xs font-medium">Copy URL</span>
-        </button>
-        <p id="footer-feedback" class="absolute -top-10 left-1/2 -translate-x-1/2 bg-sky-600 text-white text-sm py-1 px-3 rounded-full opacity-0 transition-all pointer-events-none">Copied!</p>
-    </footer>
 
 
     <script>
         // --- CONFIGURATION ---
         const GAS_URL = "https://script.google.com/macros/s/AKfycbyXcXaweoMSFLjbUW7qILp7tqKeSAa5ZoJOGdZRWiNxp5s86zL401nUZNCRKdaz0qjm/exec";
-        const STORAGE_KEY = 'waBulkXpressKeys';
-        const DOWNLOAD_LINK = "https://your-website.com/download/WaBulkXpress.zip";
+        const STORAGE_KEY = 'WaBulkXpressKeys';
+        const DOWNLOAD_LINK = "https://github.com/ParthSancheti/WabulkXpress/releasesp";
+        const RIPPLE_DELAY = 150; // Delay for ripple effect in ms
 
         // --- 0. Haptic Feedback & Sound ---
-        function hapticFeedback() {
+        function hapticFeedback(intensity = 50) {
             if (navigator.vibrate) {
-                navigator.vibrate(50);
+                navigator.vibrate(intensity);
             }
         }
         
@@ -304,51 +413,45 @@
         }
 
         // --- 2. Page Navigation (Slide Animation) ---
-        let isNavigating = false;
         let currentViewId = null;
+        let previousViewId = 'view-home'; 
 
         function showView(viewId) {
-            if (isNavigating || viewId === currentViewId) return;
-            isNavigating = true;
-            hapticFeedback();
-
-            const nextView = document.getElementById(viewId);
-            const currentView = currentViewId ? document.getElementById(currentViewId) : null;
-
+            // 1. Hide all views and reset animation
+            const allViews = document.querySelectorAll('.view');
+            allViews.forEach(v => {
+                if (v.id !== 'view-welcome') { 
+                    v.classList.add('hidden');
+                    v.classList.remove('is-visible');
+                }
+            });
+            
+            // 2. Hide the console
             hideOutput();
             const successFeedback = document.getElementById('success-copy-feedback');
             if (successFeedback) successFeedback.textContent = '';
 
-
+            // 3. Run special logic for the view (if any)
             if (viewId === 'view-revoke') {
                 populateRevokeList();
             }
 
-            if (currentView) {
-                currentView.classList.add('animate-slide-out');
-                currentView.addEventListener('animationend', () => {
-                    currentView.classList.add('hidden');
-                    currentView.classList.remove('animate-slide-out');
-                    
-                    nextView.style.display = 'block';
-                    nextView.classList.remove('hidden');
-                    nextView.classList.add('animate-slide-in');
-                    nextView.addEventListener('animationend', () => {
-                        nextView.classList.remove('animate-slide-in');
-                        isNavigating = false;
-                    }, { once: true });
-
-                }, { once: true });
-            } else {
-                nextView.style.display = 'block';
+            // 4. Show the one view we want
+            const nextView = document.getElementById(viewId);
+            if (nextView) {
                 nextView.classList.remove('hidden');
-                nextView.classList.add('animate-slide-in');
-                nextView.addEventListener('animationend', () => {
-                    nextView.classList.remove('animate-slide-in');
-                    isNavigating = false;
-                }, { once: true });
+                
+                setTimeout(() => {
+                    nextView.classList.add('is-visible');
+                }, 10); 
+                
+                if (viewId !== 'view-loading' && viewId !== 'view-welcome') {
+                    previousViewId = currentViewId; 
+                }
+                currentViewId = viewId;
+            } else {
+                console.error(`View not found: ${viewId}`);
             }
-            currentViewId = viewId;
         }
 
         // --- 3. Output Console ---
@@ -356,6 +459,8 @@
         const outputPre = outputConsole.querySelector('pre');
 
         function showOutput(message, isError = false) {
+            if (message.status === 'loading') return; 
+
             outputConsole.classList.remove('hidden');
             outputPre.textContent = JSON.stringify(message, null, 2);
             outputPre.classList.toggle('text-green-400', !isError);
@@ -374,9 +479,8 @@
             script.onload = () => document.body.removeChild(script);
             script.onerror = () => {
                 document.body.removeChild(script);
-                showOutput({ status: 'error', message: 'Failed to load script from GAS.' }, true);
-                document.getElementById('gen-submit-btn').disabled = false;
-                document.getElementById('revoke-submit-btn').disabled = false;
+                const errorData = { status: 'error', message: 'Failed to load script from GAS.' };
+                handleResponse(errorData); 
             };
         }
 
@@ -407,6 +511,8 @@
             }
         }
 
+
+
         function populateRevokeList() {
             const keys = getSavedKeys();
             const listContainer = document.getElementById('saved-keys-list');
@@ -423,7 +529,7 @@
                         <span class="text-xs text-gray-400 block">(${k.months}m, ${new Date(k.date).toLocaleDateString()})</span>
                     `;
                     keyBtn.onclick = () => {
-                        hapticFeedback();
+                        hapticFeedback(30);
                         document.getElementById('revoke-key').value = k.key;
                     };
                     listContainer.appendChild(keyBtn);
@@ -434,7 +540,14 @@
 
         // --- 6. Global Response Handler ---
         function handleResponse(data) {
+            const genBtn = document.getElementById('gen-submit-btn');
+            const revokeBtn = document.getElementById('revoke-submit-btn');
+            
+            if (genBtn) genBtn.disabled = false;
+            if (revokeBtn) revokeBtn.disabled = false;
+
             if (data.status === 'success' && data.key) {
+                // --- Key Generation Success ---
                 hideOutput(); 
                 const successView = document.getElementById('view-success');
                 const keyDisplay = document.getElementById('success-key-display');
@@ -448,21 +561,29 @@
                 successSound.play().catch(e => console.log("Audio play failed"));
                 showView('view-success');
 
-            } else if (data.status === 'success') {
-                showOutput(data, false);
-                if (data.message && data.message.includes("revoked")) {
-                    const revokedKey = document.getElementById('revoke-key').value;
-                    if (revokedKey) {
-                        removeKey(revokedKey);
-                        populateRevokeList();
-                    }
+            } else if (data.status === 'success' && data.message && data.message.includes("revoked")) {
+                // --- Key Revocation Success ---
+                hideOutput();
+                const revokedKey = document.getElementById('revoke-key').value;
+                
+                if (revokedKey) {
+                    removeKey(revokedKey);
+                    populateRevokeList();
+                    document.getElementById('revoke-key').value = '';
+                    
+                    document.getElementById('revoked-key-display').value = revokedKey;
+                    document.getElementById('view-revoked').dataset.key = revokedKey;
+                    showView('view-revoked');
+                } else {
+                    showView(previousViewId); 
+                    showOutput(data, false);
                 }
+
             } else {
+                // --- Error Handling ---
+                showView(previousViewId || 'view-home'); 
                 showOutput(data, true);
             }
-            
-            document.getElementById('gen-submit-btn').disabled = false;
-            document.getElementById('revoke-submit-btn').disabled = false;
         }
 
         // --- 7. Share Message Helper ---
@@ -495,124 +616,251 @@ Enjoy! ✨
 
             // --- Welcome Button ---
             document.getElementById('welcome-btn').addEventListener('click', () => {
-                hapticFeedback();
-                welcomeSound.play().catch(e => console.log("Audio play failed"));
+                hapticFeedback(100);
+                // REMOVED: welcomeSound.play()
                 localStorage.setItem('hasVisited', 'true');
                 const welcomeView = document.getElementById('view-welcome');
-                welcomeView.classList.add('fading-out');
-                welcomeView.addEventListener('transitionend', () => {
-                    showView('view-home');
-                }, { once: true });
+                
+                setTimeout(() => {
+                    welcomeView.classList.add('fading-out');
+                
+                    welcomeView.addEventListener('transitionend', () => {
+                        welcomeView.classList.add('hidden'); 
+                        welcomeView.classList.remove('is-visible');
+                        showView('view-home'); 
+                    }, { once: true });
+                    
+                }, RIPPLE_DELAY);
             });
 
             // --- Page Navigation Buttons ---
-            document.getElementById('btn-nav-gen').addEventListener('click', () => showView('view-generate'));
-            document.getElementById('btn-nav-rev').addEventListener('click', () => showView('view-revoke'));
-            document.getElementById('btn-nav-back1').addEventListener('click', () => showView('view-home'));
-            document.getElementById('btn-nav-back2').addEventListener('click', () => showView('view-home'));
-            document.getElementById('btn-nav-back-success').addEventListener('click', () => showView('view-home'));
+            document.getElementById('btn-nav-gen').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-generate'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-rev').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-revoke'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back1').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back2').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back-success').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
+            document.getElementById('btn-nav-back-revoked').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => showView('view-home'), RIPPLE_DELAY);
+            });
 
             // --- Generate Button ---
-            document.getElementById('gen-submit-btn').addEventListener('click', () => {
-                hapticFeedback();
-                const months = document.getElementById('gen-months').value;
-                showOutput({ status: 'loading', message: 'Generating key...' }, false);
-                document.getElementById('gen-submit-btn').disabled = true;
-                callGas('generate', `months=${months}`);
+            document.getElementById('gen-submit-btn').addEventListener('click', (e) => {
+                hapticFeedback(80);
+                const btn = e.currentTarget;
+                btn.disabled = true;
+                
+                setTimeout(() => { 
+                    const months = document.getElementById('gen-months').value;
+                    previousViewId = currentViewId; 
+                    showView('view-loading'); 
+                    callGas('generate', `months=${months}`);
+                }, RIPPLE_DELAY);
             });
 
             // --- Revoke Button ---
-            document.getElementById('revoke-submit-btn').addEventListener('click', () => {
-                hapticFeedback();
+            document.getElementById('revoke-submit-btn').addEventListener('click', (e) => {
+                hapticFeedback(80);
+                const btn = e.currentTarget;
                 const key = document.getElementById('revoke-key').value;
                 if (!key) {
+                    hapticFeedback(100); 
                     showOutput({ status: 'error', message: 'Please enter a key or select one from the list.' }, true);
                     return;
                 }
-                showOutput({ status: 'loading', message: `Revoking ${key}...` }, false);
-                document.getElementById('revoke-submit-btn').disabled = true;
-                callGas('revoke', `key=${key}`);
+                btn.disabled = true;
+                setTimeout(() => { 
+                    previousViewId = currentViewId; 
+                    showView('view-loading');
+                    callGas('revoke', `key=${key}`);
+                }, RIPPLE_DELAY);
             });
             
             // --- Success Screen Buttons ---
             const successView = document.getElementById('view-success');
             const feedback = document.getElementById('success-copy-feedback');
 
-            // 1. Copy Key Only
             document.getElementById('success-copy-key-btn').addEventListener('click', () => {
-                hapticFeedback();
-                const key = successView.dataset.key;
-                navigator.clipboard.writeText(key).then(() => {
-                    feedback.textContent = 'Key copied!';
-                    setTimeout(() => { feedback.textContent = ''; }, 2000);
-                }).catch(err => {
-                    feedback.textContent = 'Failed to copy.';
-                });
-            });
-
-            // 2. Copy Full Message
-            document.getElementById('success-copy-msg-btn').addEventListener('click', () => {
-                hapticFeedback();
-                const key = successView.dataset.key;
-                const months = successView.dataset.months;
-                const message = getShareMessage(key, months);
-                
-                navigator.clipboard.writeText(message).then(() => {
-                    feedback.textContent = 'Message copied to clipboard!';
-                    setTimeout(() => { feedback.textContent = ''; }, 2000);
-                }).catch(err => {
-                    feedback.textContent = 'Failed to copy.';
-                });
-            });
-
-            // 3. Share Button
-            document.getElementById('success-share-btn').addEventListener('click', () => {
-                hapticFeedback();
-                const key = successView.dataset.key;
-                const months = successView.dataset.months;
-                const message = getShareMessage(key, months);
-
-                if (navigator.share) {
-                    navigator.share({
-                        title: 'WaBulkXpress Key',
-                        text: message,
-                    })
-                    .then(() => console.log('Successful share'))
-                    .catch((error) => console.log('Error sharing', error));
-                } else {
-                    feedback.textContent = 'Share not supported. Copying message...';
-                    navigator.clipboard.writeText(message).then(() => {
-                        setTimeout(() => { feedback.textContent = 'Message copied!'; }, 1000);
-                        setTimeout(() => { feedback.textContent = ''; }, 3000);
+                hapticFeedback(30);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    navigator.clipboard.writeText(key).then(() => {
+                        feedback.textContent = 'Key copied!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
                     });
+                }, RIPPLE_DELAY);
+            });
+
+            document.getElementById('success-copy-msg-btn').addEventListener('click', () => {
+                hapticFeedback(30);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    const months = successView.dataset.months;
+                    const message = getShareMessage(key, months);
+                    
+                    navigator.clipboard.writeText(message).then(() => {
+                        feedback.textContent = 'Message copied to clipboard!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
+                    });
+                }, RIPPLE_DELAY);
+            });
+
+            document.getElementById('success-share-btn').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    const key = successView.dataset.key;
+                    const months = successView.dataset.months;
+                    const message = getShareMessage(key, months).trim();
+
+                    if (navigator.share) {
+                        navigator.share({
+                            title: 'WaBulkXpress Key',
+                            text: message,
+                        })
+                        .then(() => console.log('Successful share'))
+                        .catch((error) => console.log('Error sharing', error));
+                    } else {
+                        feedback.textContent = 'Share not supported. Copying message...';
+                        navigator.clipboard.writeText(message).then(() => {
+                            setTimeout(() => { feedback.textContent = 'Message copied!'; }, 1000);
+                            setTimeout(() => { feedback.textContent = ''; }, 3000);
+                        });
+                    }
+                }, RIPPLE_DELAY);
+            });
+
+            // ADDED: Revoked screen copy button
+            document.getElementById('revoked-copy-key-btn').addEventListener('click', () => {
+                hapticFeedback(30);
+                const feedback = document.getElementById('revoked-copy-feedback');
+                setTimeout(() => {
+                    const key = document.getElementById('revoked-key-display').value;
+                    navigator.clipboard.writeText(key).then(() => {
+                        feedback.textContent = 'Key copied!';
+                        setTimeout(() => { feedback.textContent = ''; }, 2000);
+                    }).catch(err => {
+                        feedback.textContent = 'Failed to copy.';
+                    });
+                }, RIPPLE_DELAY);
+            });
+
+            // --- Top Menu Button Logic ---
+            const menuBtn = document.getElementById('menu-btn');
+            const menu = document.getElementById('floating-menu');
+            
+            function toggleMenu(forceClose = false) {
+                hapticFeedback(30);
+                if (forceClose) {
+                    menu.classList.add('hidden');
+                } else {
+                    menu.classList.toggle('hidden');
+                }
+            }
+            
+            menuBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                setTimeout(() => toggleMenu(), RIPPLE_DELAY);
+            });
+
+            document.getElementById('menu-home').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-home');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            document.getElementById('menu-gen').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-generate');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            document.getElementById('menu-rev').addEventListener('click', () => {
+                hapticFeedback(50);
+                setTimeout(() => {
+                    showView('view-revoke');
+                    toggleMenu(true);
+                }, RIPPLE_DELAY);
+            });
+            
+            document.getElementById('menu-sheet').addEventListener('click', () => hapticFeedback(30));
+            document.getElementById('menu-github').addEventListener('click', () => hapticFeedback(30));
+
+
+            // Click outside to close menu
+            document.addEventListener('click', (e) => {
+                if (!menu.classList.contains('hidden') && !menu.contains(e.target) && !menuBtn.contains(e.target)) {
+                    toggleMenu(true);
                 }
             });
 
-            // --- Top Menu Button ---
-            document.getElementById('menu-btn').addEventListener('click', () => {
-                hapticFeedback();
-                alert("Menu button clicked!");
+            document.getElementById('github-btn').addEventListener('click', () => {
+                hapticFeedback(30);
             });
 
-            // --- Bottom Bar Copy URL Button ---
+            // --- Footer Buttons ---
+            document.getElementById('footer-sheet-link').addEventListener('click', () => {
+                hapticFeedback(30);
+            });
+
             document.getElementById('copy-url-btn').addEventListener('click', () => {
-                hapticFeedback();
+                hapticFeedback(30);
                 const feedback = document.getElementById('footer-feedback');
-                navigator.clipboard.writeText(window.location.href).then(() => {
-                    feedback.style.opacity = '1';
-                    setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
-                }).catch(err => {
-                    console.error('Failed to copy URL: ', err);
-                });
+                setTimeout(() => {
+                    navigator.clipboard.writeText(window.location.href).then(() => {
+                        feedback.style.opacity = '1';
+                        setTimeout(() => { feedback.style.opacity = '0'; }, 1500);
+                    }).catch(err => {
+                        console.error('Failed to copy URL: ', err);
+                    });
+                }, RIPPLE_DELAY);
             });
 
             // --- Initial Load Logic ---
             if (localStorage.getItem('hasVisited')) {
+                document.getElementById('view-welcome').classList.add('hidden'); 
                 showView('view-home');
             } else {
-                showView('view-welcome');
+                showView('view-welcome'); 
             }
+
+            // ADDED: Play welcome sound on every load (may be blocked by browser)
+            welcomeSound.play().catch(e => console.log("Audio play failed (browser policy): ", e));
+
         });
+
+        // --- PWA Service Worker Registration ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
 
     </script>
 </body>

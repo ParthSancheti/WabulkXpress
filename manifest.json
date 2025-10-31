@@ -1,27 +1,21 @@
 {
   "name": "WaBulkXpress KeyGen",
-  "short_name": "WaKeyGen",
-  "description": "Key Generator for WaBulkXpress",
-  "start_url": ".",
+  "short_name": "KeyGen",
+  "description": "A tool for generating and managing WaBulkXpress license keys.",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a202c",
-  "theme_color": "#1a202c",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
   "icons": [
     {
-      "src": "bin/Logo.png",
-      "sizes": "32x32",
-      "type": "image/png"
-    },
-    {
-      "src": "bin/Logo.png",
+      "src": "bin/icon.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "bin/Logo.png",
+      "src": "bin/icon.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     }
   ]
 }
