@@ -1,12 +1,14 @@
-// A very basic service worker to make the app installable (PWA)
-
-const CACHE_NAME = 'wabx-keygen-cache-v1';
+const CACHE_NAME = 'wabx-keygen-cache-v2'; // Incremented version
 const urlsToCache = [
-  '/',
-  '/index.html', // Or whatever your main HTML file is
+  '.', // This caches the root (index.html)
+  'index.html',
+  'manifest.json',
+  'bin/icon.png',
+  'bin/background.png',
+  'bin/load.gif',
+  'bin/welcome.mp3',
+  'bin/success.mp3',
   'https://cdn.tailwindcss.com'
-  // You can add more assets here if you want, like 'bin/icon.png'
-  // But for a simple app like this, a minimal cache is fine.
 ];
 
 // Install event
@@ -28,5 +30,21 @@ self.addEventListener('fetch', event => {
         // If network fails, try to get it from the cache
         return caches.match(event.request);
       })
+  );
+});
+
+// Clean up old caches
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.filter(cacheName => {
+          return cacheName.startsWith('wabx-keygen-cache-') &&
+                 cacheName !== CACHE_NAME;
+        }).map(cacheName => {
+          return caches.delete(cacheName);
+        })
+      );
+    })
   );
 });
