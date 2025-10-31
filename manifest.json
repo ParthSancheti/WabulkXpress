@@ -1,8 +1,9 @@
 {
   "name": "WaBulkXpress KeyGen",
   "short_name": "KeyGen",
-  "description": "A tool for generating and managing WaBulkXpress license keys.",
-  "start_url": "/",
+  "description": "A tool for managing and generating WaBulkXpress license keys.",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
